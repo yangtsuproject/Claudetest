@@ -1,6 +1,0 @@
-{
-  "buildCommand": "cd invoicing-app && npm run build",
-  "outputDirectory": "invoicing-app/.next",
-  "installCommand": "cd invoicing-app && npm install",
-  "framework": "nextjs"
-}
