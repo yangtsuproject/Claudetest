@@ -7,15 +7,23 @@ import { Expense, ExpenseCategory, EXPENSE_CATEGORIES } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/storage';
 import { exportExpensesToCSV } from '@/lib/csv';
 
+type ExpenseType = 'company' | 'personal';
+
 export default function Expenses() {
   const searchParams = useSearchParams();
   const { data, addExpense, updateExpense, deleteExpense, isLoaded } = useApp();
   const [showForm, setShowForm] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
-  const [filterType, setFilterType] = useState<string>('all');
+  const [viewType, setViewType] = useState<ExpenseType>('company');
   const [filterMonth, setFilterMonth] = useState<string>('');
+  const [defaultType, setDefaultType] = useState<ExpenseType>('company');
 
   useEffect(() => {
+    const typeParam = searchParams.get('type') as ExpenseType;
+    if (typeParam === 'company' || typeParam === 'personal') {
+      setViewType(typeParam);
+      setDefaultType(typeParam);
+    }
     if (searchParams.get('new') === 'true') {
       setShowForm(true);
     }
@@ -23,7 +31,7 @@ export default function Expenses() {
 
   const filteredExpenses = useMemo(() => {
     return data.expenses.filter((exp) => {
-      if (filterType !== 'all' && exp.type !== filterType) return false;
+      if (exp.type !== viewType) return false;
 
       if (filterMonth) {
         const expDate = new Date(exp.date);
@@ -35,7 +43,7 @@ export default function Expenses() {
 
       return true;
     });
-  }, [data.expenses, filterType, filterMonth]);
+  }, [data.expenses, viewType, filterMonth]);
 
   const monthlyTotal = useMemo(() => {
     return filteredExpenses.reduce((sum, exp) => sum + exp.amount, 0);
@@ -53,6 +61,7 @@ export default function Expenses() {
 
   const handleEdit = (expense: Expense) => {
     setEditingExpense(expense);
+    setDefaultType(expense.type);
     setShowForm(true);
   };
 
@@ -60,6 +69,11 @@ export default function Expenses() {
     if (confirm('Are you sure you want to delete this expense?')) {
       deleteExpense(id);
     }
+  };
+
+  const handleAddNew = () => {
+    setDefaultType(viewType);
+    setShowForm(true);
   };
 
   if (!isLoaded) {
@@ -70,6 +84,7 @@ export default function Expenses() {
     return (
       <ExpenseForm
         expense={editingExpense}
+        defaultType={defaultType}
         onSave={handleSave}
         onCancel={() => {
           setShowForm(false);
@@ -78,6 +93,9 @@ export default function Expenses() {
       />
     );
   }
+
+  const isCompany = viewType === 'company';
+  const accentColor = isCompany ? 'blue' : 'purple';
 
   return (
     <div className="space-y-4">
@@ -91,36 +109,42 @@ export default function Expenses() {
             Export CSV
           </button>
           <button
-            onClick={() => setShowForm(true)}
-            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+            onClick={handleAddNew}
+            className={`px-4 py-2 text-white rounded hover:opacity-90 ${
+              isCompany ? 'bg-blue-600' : 'bg-purple-600'
+            }`}
           >
-            + Add Expense
+            + Add {isCompany ? 'Company' : 'Personal'} Expense
           </button>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-4 items-center">
-        <div className="flex gap-2">
-          {['all', 'company', 'personal'].map((type) => (
-            <button
-              key={type}
-              onClick={() => setFilterType(type)}
-              className={`px-3 py-1 rounded-full text-sm ${
-                filterType === type
-                  ? type === 'company'
-                    ? 'bg-blue-600 text-white'
-                    : type === 'personal'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-slate-800 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              {type === 'all' ? 'All' : type === 'company' ? '🏢 Company' : '👤 Personal'}
-            </button>
-          ))}
-        </div>
+      {/* View Type Toggle */}
+      <div className="flex bg-slate-200 rounded-lg p-1 w-fit">
+        <button
+          onClick={() => setViewType('company')}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition ${
+            viewType === 'company'
+              ? 'bg-blue-600 text-white'
+              : 'text-slate-600 hover:text-slate-800'
+          }`}
+        >
+          Company
+        </button>
+        <button
+          onClick={() => setViewType('personal')}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition ${
+            viewType === 'personal'
+              ? 'bg-purple-600 text-white'
+              : 'text-slate-600 hover:text-slate-800'
+          }`}
+        >
+          Personal
+        </button>
+      </div>
 
+      {/* Month Filter */}
+      <div className="flex flex-wrap gap-4 items-center">
         <input
           type="month"
           value={filterMonth}
@@ -139,15 +163,17 @@ export default function Expenses() {
       </div>
 
       {/* Summary */}
-      <div className="bg-white rounded-lg shadow p-4">
+      <div className={`bg-white rounded-lg shadow p-4 border-l-4 ${
+        isCompany ? 'border-blue-500' : 'border-purple-500'
+      }`}>
         <div className="flex justify-between items-center">
           <span className="text-slate-600">
             {filterMonth
-              ? `Total for ${new Date(filterMonth + '-01').toLocaleDateString('en-SG', { month: 'long', year: 'numeric' })}`
-              : 'Total (filtered)'}
+              ? `${isCompany ? 'Company' : 'Personal'} expenses for ${new Date(filterMonth + '-01').toLocaleDateString('en-SG', { month: 'long', year: 'numeric' })}`
+              : `Total ${isCompany ? 'Company' : 'Personal'} Expenses`}
           </span>
-          <span className="text-2xl font-bold text-red-600">
-            -{formatCurrency(monthlyTotal)}
+          <span className={`text-2xl font-bold ${isCompany ? 'text-blue-600' : 'text-purple-600'}`}>
+            {formatCurrency(monthlyTotal)}
           </span>
         </div>
       </div>
@@ -156,12 +182,12 @@ export default function Expenses() {
       <div className="bg-white rounded-lg shadow overflow-hidden">
         {filteredExpenses.length === 0 ? (
           <div className="p-8 text-center text-slate-500">
-            <p>No expenses found</p>
+            <p>No {isCompany ? 'company' : 'personal'} expenses found</p>
             <button
-              onClick={() => setShowForm(true)}
-              className="mt-4 text-green-600 hover:underline"
+              onClick={handleAddNew}
+              className={`mt-4 hover:underline ${isCompany ? 'text-blue-600' : 'text-purple-600'}`}
             >
-              Add your first expense
+              Add your first {isCompany ? 'company' : 'personal'} expense
             </button>
           </div>
         ) : (
@@ -171,10 +197,10 @@ export default function Expenses() {
                 <div className="flex items-center gap-3">
                   <span
                     className={`w-10 h-10 flex items-center justify-center rounded-full text-lg ${
-                      expense.type === 'company' ? 'bg-blue-100' : 'bg-purple-100'
+                      isCompany ? 'bg-blue-100' : 'bg-purple-100'
                     }`}
                   >
-                    {expense.type === 'company' ? '🏢' : '👤'}
+                    {isCompany ? '🏢' : '👤'}
                   </span>
                   <div>
                     <p className="font-medium">{expense.description}</p>
@@ -186,7 +212,9 @@ export default function Expenses() {
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="text-right">
-                    <p className="font-medium text-red-600">-{formatCurrency(expense.amount)}</p>
+                    <p className={`font-medium ${isCompany ? 'text-blue-600' : 'text-purple-600'}`}>
+                      -{formatCurrency(expense.amount)}
+                    </p>
                     <p className="text-xs text-slate-400">{formatDate(expense.date)}</p>
                   </div>
                   <div className="flex gap-2">
@@ -218,14 +246,15 @@ export default function Expenses() {
 // Expense Form Component
 interface ExpenseFormProps {
   expense: Expense | null;
+  defaultType: ExpenseType;
   onSave: (expense: Omit<Expense, 'id' | 'createdAt' | 'updatedAt'>) => void;
   onCancel: () => void;
 }
 
-function ExpenseForm({ expense, onSave, onCancel }: ExpenseFormProps) {
+function ExpenseForm({ expense, defaultType, onSave, onCancel }: ExpenseFormProps) {
   const [formData, setFormData] = useState({
     date: expense?.date || new Date().toISOString().split('T')[0],
-    type: expense?.type || 'company' as 'company' | 'personal',
+    type: expense?.type || defaultType,
     category: expense?.category || 'other' as ExpenseCategory,
     description: expense?.description || '',
     amount: expense?.amount || 0,
@@ -244,11 +273,13 @@ function ExpenseForm({ expense, onSave, onCancel }: ExpenseFormProps) {
     onSave(formData);
   };
 
+  const isCompany = formData.type === 'company';
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-slate-800">
-          {expense ? 'Edit Expense' : 'Add Expense'}
+          {expense ? 'Edit Expense' : `Add ${isCompany ? 'Company' : 'Personal'} Expense`}
         </h2>
         <button onClick={onCancel} className="text-slate-600 hover:text-slate-800">
           ✕ Close
@@ -270,7 +301,7 @@ function ExpenseForm({ expense, onSave, onCancel }: ExpenseFormProps) {
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                🏢 Company
+                Company
               </button>
               <button
                 type="button"
@@ -281,7 +312,7 @@ function ExpenseForm({ expense, onSave, onCancel }: ExpenseFormProps) {
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                👤 Personal
+                Personal
               </button>
             </div>
           </div>
@@ -328,32 +359,18 @@ function ExpenseForm({ expense, onSave, onCancel }: ExpenseFormProps) {
           </div>
 
           {/* Amount */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">Amount (SGD) *</label>
-              <input
-                type="number"
-                value={formData.amount || ''}
-                onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
-                className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">GST Amount</label>
-              <input
-                type="number"
-                value={formData.gstAmount || ''}
-                onChange={(e) => setFormData({ ...formData, gstAmount: parseFloat(e.target.value) || 0 })}
-                className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-              />
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-600 mb-1">Amount (SGD) *</label>
+            <input
+              type="number"
+              value={formData.amount || ''}
+              onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
+              className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              min="0"
+              step="0.01"
+              placeholder="0.00"
+              required
+            />
           </div>
 
           {/* Vendor */}
@@ -385,7 +402,9 @@ function ExpenseForm({ expense, onSave, onCancel }: ExpenseFormProps) {
         <div className="flex gap-4">
           <button
             type="submit"
-            className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+            className={`px-6 py-2 text-white rounded hover:opacity-90 ${
+              isCompany ? 'bg-blue-600' : 'bg-purple-600'
+            }`}
           >
             {expense ? 'Update Expense' : 'Add Expense'}
           </button>

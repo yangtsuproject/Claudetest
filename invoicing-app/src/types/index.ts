@@ -143,7 +143,7 @@ export const DEFAULT_COMPANY_INFO: CompanyInfo = {
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  gstRate: 9, // Singapore GST rate
+  gstRate: 0, // No GST
   currency: 'SGD',
   invoicePrefix: 'INV',
   nextInvoiceNumber: 1,
