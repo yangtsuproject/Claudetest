@@ -70,7 +70,6 @@ export default function Invoices() {
       <InvoiceForm
         invoice={editingInvoice}
         nextInvoiceNumber={getNextInvoiceNumber()}
-        gstRate={data.settings.gstRate}
         onSave={handleSave}
         onCancel={() => {
           setShowForm(false);
@@ -220,12 +219,11 @@ export default function Invoices() {
 interface InvoiceFormProps {
   invoice: Invoice | null;
   nextInvoiceNumber: string;
-  gstRate: number;
   onSave: (invoice: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt'>) => void;
   onCancel: () => void;
 }
 
-function InvoiceForm({ invoice, nextInvoiceNumber, gstRate, onSave, onCancel }: InvoiceFormProps) {
+function InvoiceForm({ invoice, nextInvoiceNumber, onSave, onCancel }: InvoiceFormProps) {
   const [formData, setFormData] = useState({
     invoiceNumber: invoice?.invoiceNumber || nextInvoiceNumber,
     date: invoice?.date || new Date().toISOString().split('T')[0],
@@ -270,8 +268,7 @@ function InvoiceForm({ invoice, nextInvoiceNumber, gstRate, onSave, onCancel }: 
   };
 
   const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
-  const gstAmount = subtotal * (gstRate / 100);
-  const total = subtotal + gstAmount;
+  const total = subtotal; // No GST - company not GST registered
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -280,8 +277,6 @@ function InvoiceForm({ invoice, nextInvoiceNumber, gstRate, onSave, onCancel }: 
       ...formData,
       items,
       subtotal,
-      gstRate,
-      gstAmount,
       total,
     });
   };
@@ -477,14 +472,6 @@ function InvoiceForm({ invoice, nextInvoiceNumber, gstRate, onSave, onCancel }: 
 
           {/* Totals */}
           <div className="border-t pt-4 space-y-2">
-            <div className="flex justify-between text-slate-600">
-              <span>Subtotal</span>
-              <span>{formatCurrency(subtotal)}</span>
-            </div>
-            <div className="flex justify-between text-slate-600">
-              <span>GST ({gstRate}%)</span>
-              <span>{formatCurrency(gstAmount)}</span>
-            </div>
             <div className="flex justify-between font-bold text-lg">
               <span>Total</span>
               <span>{formatCurrency(total)}</span>
@@ -621,14 +608,6 @@ function InvoiceView({ invoice, companyInfo, onClose }: InvoiceViewProps) {
         {/* Totals */}
         <div className="flex justify-end">
           <div className="w-64">
-            <div className="flex justify-between py-2">
-              <span className="text-slate-600">Subtotal</span>
-              <span>{formatCurrency(invoice.subtotal)}</span>
-            </div>
-            <div className="flex justify-between py-2">
-              <span className="text-slate-600">GST ({invoice.gstRate}%)</span>
-              <span>{formatCurrency(invoice.gstAmount)}</span>
-            </div>
             <div className="flex justify-between py-2 border-t-2 font-bold text-lg">
               <span>Total</span>
               <span>{formatCurrency(invoice.total)}</span>

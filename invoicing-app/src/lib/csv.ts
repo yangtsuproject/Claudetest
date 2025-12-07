@@ -8,9 +8,6 @@ export const exportInvoicesToCSV = (invoices: Invoice[]): void => {
     'Due Date',
     'Client Name',
     'Client Address',
-    'Subtotal',
-    'GST Rate (%)',
-    'GST Amount',
     'Total',
     'Status',
   ];
@@ -21,9 +18,6 @@ export const exportInvoicesToCSV = (invoices: Invoice[]): void => {
     formatDate(inv.dueDate),
     inv.clientName,
     inv.clientAddress,
-    inv.subtotal.toFixed(2),
-    inv.gstRate.toString(),
-    inv.gstAmount.toFixed(2),
     inv.total.toFixed(2),
     inv.status,
   ]);
@@ -39,7 +33,6 @@ export const exportExpensesToCSV = (expenses: Expense[]): void => {
     'Description',
     'Vendor',
     'Amount',
-    'GST Amount',
     'Notes',
   ];
 
@@ -50,7 +43,6 @@ export const exportExpensesToCSV = (expenses: Expense[]): void => {
     exp.description,
     exp.vendor || '',
     exp.amount.toFixed(2),
-    exp.gstAmount?.toFixed(2) || '',
     exp.notes || '',
   ]);
 

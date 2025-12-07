@@ -1,4 +1,4 @@
-// Singapore-compliant Invoice Types
+// Singapore-compliant Invoice Types (Non-GST Registered)
 export interface Invoice {
   id: string;
   invoiceNumber: string;
@@ -9,8 +9,6 @@ export interface Invoice {
   clientEmail?: string;
   items: InvoiceItem[];
   subtotal: number;
-  gstRate: number; // Singapore GST (9% as of 2024)
-  gstAmount: number;
   total: number;
   status: 'draft' | 'sent' | 'paid' | 'overdue';
   notes?: string;
@@ -33,7 +31,6 @@ export interface Expense {
   type: 'company' | 'personal';
   description: string;
   amount: number;
-  gstAmount?: number;
   vendor?: string;
   receiptId?: string;
   notes?: string;
@@ -132,7 +129,6 @@ export interface AppData {
 }
 
 export interface AppSettings {
-  gstRate: number;
   currency: string;
   invoicePrefix: string;
   nextInvoiceNumber: number;
@@ -146,7 +142,6 @@ export const DEFAULT_COMPANY_INFO: CompanyInfo = {
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  gstRate: 0, // No GST
   currency: 'SGD',
   invoicePrefix: 'INV',
   nextInvoiceNumber: 1,

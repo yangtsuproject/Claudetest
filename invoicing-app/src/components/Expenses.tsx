@@ -536,7 +536,6 @@ function ExpenseForm({ expense, defaultType, onSave, onCancel }: ExpenseFormProp
     category: expense?.category || 'other' as ExpenseCategory,
     description: expense?.description || '',
     amount: expense?.amount || 0,
-    gstAmount: expense?.gstAmount || 0,
     vendor: expense?.vendor || '',
     notes: expense?.notes || '',
     receiptId: expense?.receiptId || '',

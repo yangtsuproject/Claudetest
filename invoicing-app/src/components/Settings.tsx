@@ -169,20 +169,6 @@ export default function Settings() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-slate-600 mb-1">GST Rate (%)</label>
-          <input
-            type="number"
-            value={data.settings.gstRate}
-            onChange={(e) => updateSettings({ gstRate: parseFloat(e.target.value) || 0 })}
-            className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            min="0"
-            max="100"
-            step="0.5"
-          />
-          <p className="text-xs text-slate-500 mt-1">Singapore GST is currently 9% (as of 2024)</p>
-        </div>
-
-        <div>
           <label className="block text-sm font-medium text-slate-600 mb-1">Currency</label>
           <select
             value={data.settings.currency}
