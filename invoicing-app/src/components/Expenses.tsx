@@ -4,11 +4,13 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useApp } from '@/context/AppContext';
 import { Expense, ExpenseCategory, EXPENSE_CATEGORIES, Receipt, BankStatement, BankTransaction } from '@/types';
-import { formatCurrency, formatDate } from '@/lib/storage';
+import { formatCurrency, formatDate, generateId } from '@/lib/storage';
 import { exportExpensesToCSV, parseCSVBankStatement } from '@/lib/csv';
+import { parsePDFFile, extractTransactionsFromText, ParsedTransaction, categorizeTransaction } from '@/lib/pdfParser';
+import SpendingAnalytics from './SpendingAnalytics';
 
 type ExpenseType = 'company' | 'personal';
-type TabView = 'expenses' | 'receipts' | 'bank';
+type TabView = 'expenses' | 'receipts' | 'bank' | 'analytics';
 
 export default function Expenses() {
   const searchParams = useSearchParams();
@@ -38,7 +40,7 @@ export default function Expenses() {
       setShowForm(true);
     }
     const tab = searchParams.get('tab') as TabView;
-    if (tab === 'receipts' || tab === 'bank') {
+    if (tab === 'receipts' || tab === 'bank' || tab === 'analytics') {
       setTabView(tab);
     }
   }, [searchParams]);
@@ -241,6 +243,16 @@ export default function Expenses() {
           }`}
         >
           🏦 Bank Statements
+        </button>
+        <button
+          onClick={() => setTabView('analytics')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition ${
+            tabView === 'analytics'
+              ? `${isCompany ? 'border-blue-600 text-blue-600' : 'border-purple-600 text-purple-600'}`
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          📊 Analytics
         </button>
       </div>
 
@@ -516,6 +528,11 @@ export default function Expenses() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Analytics Tab */}
+      {tabView === 'analytics' && (
+        <SpendingAnalytics expenses={data.expenses} type={viewType} />
       )}
     </div>
   );
@@ -1001,11 +1018,16 @@ interface BankUploadProps {
 }
 
 function BankUpload({ onUpload, onCancel }: BankUploadProps) {
+  const { addExpense } = useApp();
   const [fileName, setFileName] = useState<string>('');
   const [fileType, setFileType] = useState<'csv' | 'pdf' | 'other'>('csv');
   const [fileData, setFileData] = useState<string>('');
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
+  const [parsedPdfTransactions, setParsedPdfTransactions] = useState<ParsedTransaction[]>([]);
   const [error, setError] = useState<string>('');
+  const [isParsing, setIsParsing] = useState(false);
+  const [expenseType, setExpenseType] = useState<'company' | 'personal'>('personal');
+  const [selectedTransactions, setSelectedTransactions] = useState<Set<number>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1015,17 +1037,40 @@ function BankUpload({ onUpload, onCancel }: BankUploadProps) {
     setFileName(file.name);
     setError('');
     setTransactions([]);
+    setParsedPdfTransactions([]);
+    setSelectedTransactions(new Set());
 
     const extension = file.name.split('.').pop()?.toLowerCase();
 
     if (extension === 'pdf') {
       setFileType('pdf');
-      // Store PDF as base64 for record-keeping
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setFileData(event.target?.result as string);
-      };
-      reader.readAsDataURL(file);
+      setIsParsing(true);
+
+      try {
+        // Store PDF as base64
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          setFileData(event.target?.result as string);
+        };
+        reader.readAsDataURL(file);
+
+        // Parse PDF for transactions
+        const pdfText = await parsePDFFile(file);
+        const extracted = extractTransactionsFromText(pdfText);
+
+        if (extracted.length > 0) {
+          setParsedPdfTransactions(extracted);
+          // Select all by default
+          setSelectedTransactions(new Set(extracted.map((_, i) => i)));
+        } else {
+          setError('Could not extract transactions from PDF. The statement will be saved as attachment.');
+        }
+      } catch (err) {
+        setError('Failed to parse PDF. The file will be saved as attachment.');
+        console.error(err);
+      } finally {
+        setIsParsing(false);
+      }
     } else if (extension === 'csv') {
       setFileType('csv');
       try {
@@ -1052,6 +1097,51 @@ function BankUpload({ onUpload, onCancel }: BankUploadProps) {
     }
   };
 
+  const toggleTransaction = (index: number) => {
+    const newSelected = new Set(selectedTransactions);
+    if (newSelected.has(index)) {
+      newSelected.delete(index);
+    } else {
+      newSelected.add(index);
+    }
+    setSelectedTransactions(newSelected);
+  };
+
+  const selectAll = () => {
+    setSelectedTransactions(new Set(parsedPdfTransactions.map((_, i) => i)));
+  };
+
+  const selectNone = () => {
+    setSelectedTransactions(new Set());
+  };
+
+  const handleImportAsExpenses = () => {
+    const selectedTxns = parsedPdfTransactions.filter((_, i) => selectedTransactions.has(i));
+
+    selectedTxns.forEach((txn) => {
+      if (txn.type === 'debit') { // Only import debits as expenses
+        addExpense({
+          date: txn.date,
+          type: expenseType,
+          category: txn.suggestedCategory,
+          description: txn.description,
+          amount: txn.amount,
+          vendor: '',
+          notes: `Imported from ${fileName}`,
+        });
+      }
+    });
+
+    // Also save the statement
+    onUpload({
+      fileName,
+      fileType,
+      fileData,
+      uploadDate: new Date().toISOString(),
+      transactions: transactions,
+    });
+  };
+
   const handleSubmit = () => {
     if (!fileName) return;
 
@@ -1063,6 +1153,8 @@ function BankUpload({ onUpload, onCancel }: BankUploadProps) {
       transactions,
     });
   };
+
+  const debitCount = parsedPdfTransactions.filter((t, i) => selectedTransactions.has(i) && t.type === 'debit').length;
 
   return (
     <div className="space-y-6">
@@ -1079,9 +1171,8 @@ function BankUpload({ onUpload, onCancel }: BankUploadProps) {
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
               <p className="font-medium text-blue-800 mb-2">Supported Formats:</p>
               <ul className="text-blue-700 space-y-1">
-                <li>• <strong>PDF</strong> - Bank statement PDFs (stored as attachment)</li>
+                <li>• <strong>PDF</strong> - Bank statements (auto-extract & import transactions)</li>
                 <li>• <strong>CSV</strong> - Transaction data (auto-parsed)</li>
-                <li>• <strong>Other</strong> - Any file for record-keeping</li>
               </ul>
             </div>
 
@@ -1090,20 +1181,27 @@ function BankUpload({ onUpload, onCancel }: BankUploadProps) {
               className="flex items-center justify-center gap-2 w-full py-8 border-2 border-dashed border-slate-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition"
             >
               <span className="text-3xl">📄</span>
-              <span className="text-slate-600">Select File (PDF, CSV, etc.)</span>
+              <span className="text-slate-600">Select File (PDF, CSV)</span>
             </button>
 
             <input
               ref={fileInputRef}
               type="file"
-              accept=".pdf,.csv,.xls,.xlsx,.txt"
+              accept=".pdf,.csv"
               onChange={handleFileSelect}
               className="hidden"
             />
           </>
         )}
 
-        {fileName && (
+        {isParsing && (
+          <div className="text-center py-8">
+            <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+            <p className="text-slate-600">Parsing PDF for transactions...</p>
+          </div>
+        )}
+
+        {fileName && !isParsing && (
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-3">
@@ -1113,10 +1211,10 @@ function BankUpload({ onUpload, onCancel }: BankUploadProps) {
                 <div>
                   <p className="font-medium">{fileName}</p>
                   <p className="text-sm text-slate-500">
-                    {fileType === 'csv' && transactions.length > 0
+                    {parsedPdfTransactions.length > 0
+                      ? `${parsedPdfTransactions.length} transactions extracted`
+                      : fileType === 'csv' && transactions.length > 0
                       ? `${transactions.length} transactions found`
-                      : fileType === 'pdf'
-                      ? 'PDF attachment'
                       : 'File attachment'}
                   </p>
                 </div>
@@ -1126,6 +1224,7 @@ function BankUpload({ onUpload, onCancel }: BankUploadProps) {
                   setFileName('');
                   setFileData('');
                   setTransactions([]);
+                  setParsedPdfTransactions([]);
                   setError('');
                 }}
                 className="text-red-600 hover:underline text-sm"
@@ -1137,11 +1236,122 @@ function BankUpload({ onUpload, onCancel }: BankUploadProps) {
             {error && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-700">
                 {error}
-                <p className="mt-2">The file will be saved as an attachment for your records.</p>
               </div>
             )}
 
-            {/* Transaction Preview */}
+            {/* PDF Transaction Import */}
+            {parsedPdfTransactions.length > 0 && (
+              <div className="space-y-4">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <p className="font-medium text-green-800 mb-2">
+                    Import Transactions as Expenses
+                  </p>
+                  <p className="text-sm text-green-700 mb-3">
+                    Select transactions to import and categorize them automatically.
+                  </p>
+
+                  {/* Expense Type Selection */}
+                  <div className="flex gap-2 mb-3">
+                    <button
+                      onClick={() => setExpenseType('company')}
+                      className={`px-3 py-1 rounded text-sm ${
+                        expenseType === 'company'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-white border text-slate-600'
+                      }`}
+                    >
+                      Company
+                    </button>
+                    <button
+                      onClick={() => setExpenseType('personal')}
+                      className={`px-3 py-1 rounded text-sm ${
+                        expenseType === 'personal'
+                          ? 'bg-purple-600 text-white'
+                          : 'bg-white border text-slate-600'
+                      }`}
+                    >
+                      Personal
+                    </button>
+                  </div>
+
+                  <div className="flex gap-2 text-sm">
+                    <button onClick={selectAll} className="text-blue-600 hover:underline">
+                      Select All
+                    </button>
+                    <span className="text-slate-400">|</span>
+                    <button onClick={selectNone} className="text-blue-600 hover:underline">
+                      Select None
+                    </button>
+                    <span className="text-slate-400">|</span>
+                    <span className="text-slate-600">
+                      {selectedTransactions.size} selected ({debitCount} expenses)
+                    </span>
+                  </div>
+                </div>
+
+                <div className="max-h-64 overflow-auto border rounded-lg">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 sticky top-0">
+                      <tr>
+                        <th className="w-8 p-2"></th>
+                        <th className="text-left p-2">Date</th>
+                        <th className="text-left p-2">Description</th>
+                        <th className="text-left p-2">Category</th>
+                        <th className="text-right p-2">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {parsedPdfTransactions.map((t, i) => (
+                        <tr
+                          key={i}
+                          className={`cursor-pointer ${selectedTransactions.has(i) ? 'bg-blue-50' : 'hover:bg-slate-50'}`}
+                          onClick={() => toggleTransaction(i)}
+                        >
+                          <td className="p-2 text-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedTransactions.has(i)}
+                              onChange={() => toggleTransaction(i)}
+                              className="rounded"
+                            />
+                          </td>
+                          <td className="p-2">{formatDate(t.date)}</td>
+                          <td className="p-2 truncate max-w-xs">{t.description}</td>
+                          <td className="p-2 text-xs">
+                            <span className="px-2 py-1 bg-slate-100 rounded">
+                              {EXPENSE_CATEGORIES[t.suggestedCategory]?.label || t.suggestedCategory}
+                            </span>
+                          </td>
+                          <td className={`p-2 text-right ${t.type === 'credit' ? 'text-green-600' : 'text-red-600'}`}>
+                            {t.type === 'credit' ? '+' : '-'}{formatCurrency(t.amount)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="flex gap-4">
+                  <button
+                    onClick={handleImportAsExpenses}
+                    disabled={debitCount === 0}
+                    className={`px-6 py-2 text-white rounded hover:opacity-90 ${
+                      expenseType === 'company' ? 'bg-blue-600' : 'bg-purple-600'
+                    } ${debitCount === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    Import {debitCount} Expense{debitCount !== 1 ? 's' : ''}
+                  </button>
+                  <button
+                    onClick={handleSubmit}
+                    className="px-6 py-2 border rounded hover:bg-slate-50"
+                  >
+                    Save Without Import
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* CSV Transaction Preview */}
             {transactions.length > 0 && (
               <div className="max-h-64 overflow-auto border rounded-lg">
                 <table className="w-full text-sm">
@@ -1172,20 +1382,23 @@ function BankUpload({ onUpload, onCancel }: BankUploadProps) {
               </div>
             )}
 
-            <div className="flex gap-4">
-              <button
-                onClick={handleSubmit}
-                className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                {fileType === 'csv' && transactions.length > 0 ? 'Import Statement' : 'Save Attachment'}
-              </button>
-              <button
-                onClick={onCancel}
-                className="px-6 py-2 border rounded hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-            </div>
+            {/* Submit button for CSV/other files */}
+            {parsedPdfTransactions.length === 0 && (
+              <div className="flex gap-4">
+                <button
+                  onClick={handleSubmit}
+                  className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                >
+                  {fileType === 'csv' && transactions.length > 0 ? 'Import Statement' : 'Save Attachment'}
+                </button>
+                <button
+                  onClick={onCancel}
+                  className="px-6 py-2 border rounded hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
