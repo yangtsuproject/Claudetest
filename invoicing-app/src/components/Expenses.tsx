@@ -1,22 +1,32 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useApp } from '@/context/AppContext';
-import { Expense, ExpenseCategory, EXPENSE_CATEGORIES } from '@/types';
+import { Expense, ExpenseCategory, EXPENSE_CATEGORIES, Receipt, BankStatement, BankTransaction } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/storage';
-import { exportExpensesToCSV } from '@/lib/csv';
+import { exportExpensesToCSV, parseCSVBankStatement } from '@/lib/csv';
 
 type ExpenseType = 'company' | 'personal';
+type TabView = 'expenses' | 'receipts' | 'bank';
 
 export default function Expenses() {
   const searchParams = useSearchParams();
-  const { data, addExpense, updateExpense, deleteExpense, isLoaded } = useApp();
+  const { data, addExpense, updateExpense, deleteExpense, addReceipt, deleteReceipt, addBankStatement, deleteBankStatement, isLoaded } = useApp();
   const [showForm, setShowForm] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [viewType, setViewType] = useState<ExpenseType>('company');
+  const [tabView, setTabView] = useState<TabView>('expenses');
   const [filterMonth, setFilterMonth] = useState<string>('');
   const [defaultType, setDefaultType] = useState<ExpenseType>('company');
+
+  // Receipt states
+  const [showReceiptUpload, setShowReceiptUpload] = useState(false);
+  const [viewReceipt, setViewReceipt] = useState<Receipt | null>(null);
+
+  // Bank states
+  const [showBankUpload, setShowBankUpload] = useState(false);
+  const [viewStatement, setViewStatement] = useState<BankStatement | null>(null);
 
   useEffect(() => {
     const typeParam = searchParams.get('type') as ExpenseType;
@@ -26,6 +36,10 @@ export default function Expenses() {
     }
     if (searchParams.get('new') === 'true') {
       setShowForm(true);
+    }
+    const tab = searchParams.get('tab') as TabView;
+    if (tab === 'receipts' || tab === 'bank') {
+      setTabView(tab);
     }
   }, [searchParams]);
 
@@ -76,8 +90,78 @@ export default function Expenses() {
     setShowForm(true);
   };
 
+  const handleReceiptUpload = (receipt: Omit<Receipt, 'id'>) => {
+    addReceipt(receipt);
+    setShowReceiptUpload(false);
+  };
+
+  const handleDeleteReceipt = (id: string) => {
+    if (confirm('Are you sure you want to delete this receipt?')) {
+      deleteReceipt(id);
+    }
+  };
+
+  const handleBankUpload = (statement: Omit<BankStatement, 'id'>) => {
+    addBankStatement(statement);
+    setShowBankUpload(false);
+  };
+
+  const handleDeleteStatement = (id: string) => {
+    if (confirm('Are you sure you want to delete this bank statement?')) {
+      deleteBankStatement(id);
+    }
+  };
+
   if (!isLoaded) {
     return <div className="text-slate-500">Loading...</div>;
+  }
+
+  // Show receipt view
+  if (viewReceipt) {
+    return (
+      <ReceiptView
+        receipt={viewReceipt}
+        onClose={() => setViewReceipt(null)}
+        onDelete={() => {
+          handleDeleteReceipt(viewReceipt.id);
+          setViewReceipt(null);
+        }}
+      />
+    );
+  }
+
+  // Show bank statement view
+  if (viewStatement) {
+    return (
+      <StatementView
+        statement={viewStatement}
+        onClose={() => setViewStatement(null)}
+        onDelete={() => {
+          handleDeleteStatement(viewStatement.id);
+          setViewStatement(null);
+        }}
+      />
+    );
+  }
+
+  // Show receipt upload form
+  if (showReceiptUpload) {
+    return (
+      <ReceiptUpload
+        onUpload={handleReceiptUpload}
+        onCancel={() => setShowReceiptUpload(false)}
+      />
+    );
+  }
+
+  // Show bank upload form
+  if (showBankUpload) {
+    return (
+      <BankUpload
+        onUpload={handleBankUpload}
+        onCancel={() => setShowBankUpload(false)}
+      />
+    );
   }
 
   if (showForm) {
@@ -95,31 +179,14 @@ export default function Expenses() {
   }
 
   const isCompany = viewType === 'company';
-  const accentColor = isCompany ? 'blue' : 'purple';
 
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h2 className="text-2xl font-bold text-slate-800">Expenses</h2>
-        <div className="flex gap-2">
-          <button
-            onClick={() => exportExpensesToCSV(filteredExpenses)}
-            className="px-4 py-2 text-slate-600 border rounded hover:bg-slate-50"
-          >
-            Export CSV
-          </button>
-          <button
-            onClick={handleAddNew}
-            className={`px-4 py-2 text-white rounded hover:opacity-90 ${
-              isCompany ? 'bg-blue-600' : 'bg-purple-600'
-            }`}
-          >
-            + Add {isCompany ? 'Company' : 'Personal'} Expense
-          </button>
-        </div>
       </div>
 
-      {/* View Type Toggle */}
+      {/* View Type Toggle (Company/Personal) */}
       <div className="flex bg-slate-200 rounded-lg p-1 w-fit">
         <button
           onClick={() => setViewType('company')}
@@ -143,102 +210,313 @@ export default function Expenses() {
         </button>
       </div>
 
-      {/* Month Filter */}
-      <div className="flex flex-wrap gap-4 items-center">
-        <input
-          type="month"
-          value={filterMonth}
-          onChange={(e) => setFilterMonth(e.target.value)}
-          className="px-3 py-1 border rounded text-sm"
-        />
-
-        {filterMonth && (
-          <button
-            onClick={() => setFilterMonth('')}
-            className="text-sm text-slate-500 hover:text-slate-700"
-          >
-            Clear filter
-          </button>
-        )}
+      {/* Tab Navigation */}
+      <div className="flex border-b">
+        <button
+          onClick={() => setTabView('expenses')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition ${
+            tabView === 'expenses'
+              ? `${isCompany ? 'border-blue-600 text-blue-600' : 'border-purple-600 text-purple-600'}`
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          💰 Expenses
+        </button>
+        <button
+          onClick={() => setTabView('receipts')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition ${
+            tabView === 'receipts'
+              ? `${isCompany ? 'border-blue-600 text-blue-600' : 'border-purple-600 text-purple-600'}`
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          🧾 Receipts
+        </button>
+        <button
+          onClick={() => setTabView('bank')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition ${
+            tabView === 'bank'
+              ? `${isCompany ? 'border-blue-600 text-blue-600' : 'border-purple-600 text-purple-600'}`
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          🏦 Bank Statements
+        </button>
       </div>
 
-      {/* Summary */}
-      <div className={`bg-white rounded-lg shadow p-4 border-l-4 ${
-        isCompany ? 'border-blue-500' : 'border-purple-500'
-      }`}>
-        <div className="flex justify-between items-center">
-          <span className="text-slate-600">
-            {filterMonth
-              ? `${isCompany ? 'Company' : 'Personal'} expenses for ${new Date(filterMonth + '-01').toLocaleDateString('en-SG', { month: 'long', year: 'numeric' })}`
-              : `Total ${isCompany ? 'Company' : 'Personal'} Expenses`}
-          </span>
-          <span className={`text-2xl font-bold ${isCompany ? 'text-blue-600' : 'text-purple-600'}`}>
-            {formatCurrency(monthlyTotal)}
-          </span>
-        </div>
-      </div>
-
-      {/* Expense List */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        {filteredExpenses.length === 0 ? (
-          <div className="p-8 text-center text-slate-500">
-            <p>No {isCompany ? 'company' : 'personal'} expenses found</p>
+      {/* Expenses Tab */}
+      {tabView === 'expenses' && (
+        <div className="space-y-4">
+          {/* Actions */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => exportExpensesToCSV(filteredExpenses)}
+              className="px-4 py-2 text-slate-600 border rounded hover:bg-slate-50"
+            >
+              Export CSV
+            </button>
             <button
               onClick={handleAddNew}
-              className={`mt-4 hover:underline ${isCompany ? 'text-blue-600' : 'text-purple-600'}`}
+              className={`px-4 py-2 text-white rounded hover:opacity-90 ${
+                isCompany ? 'bg-blue-600' : 'bg-purple-600'
+              }`}
             >
-              Add your first {isCompany ? 'company' : 'personal'} expense
+              + Add Expense
             </button>
           </div>
-        ) : (
-          <div className="divide-y">
-            {filteredExpenses.map((expense) => (
-              <div key={expense.id} className="p-4 flex justify-between items-center hover:bg-slate-50">
-                <div className="flex items-center gap-3">
-                  <span
-                    className={`w-10 h-10 flex items-center justify-center rounded-full text-lg ${
-                      isCompany ? 'bg-blue-100' : 'bg-purple-100'
-                    }`}
-                  >
-                    {isCompany ? '🏢' : '👤'}
-                  </span>
-                  <div>
-                    <p className="font-medium">{expense.description}</p>
-                    <p className="text-sm text-slate-500">
-                      {EXPENSE_CATEGORIES[expense.category]?.label || expense.category}
-                      {expense.vendor && ` • ${expense.vendor}`}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="text-right">
-                    <p className={`font-medium ${isCompany ? 'text-blue-600' : 'text-purple-600'}`}>
-                      -{formatCurrency(expense.amount)}
-                    </p>
-                    <p className="text-xs text-slate-400">{formatDate(expense.date)}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleEdit(expense)}
-                      className="text-slate-400 hover:text-blue-600"
-                      title="Edit"
-                    >
-                      ✏️
-                    </button>
-                    <button
-                      onClick={() => handleDelete(expense.id)}
-                      className="text-slate-400 hover:text-red-600"
-                      title="Delete"
-                    >
-                      🗑️
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
+
+          {/* Month Filter */}
+          <div className="flex flex-wrap gap-4 items-center">
+            <input
+              type="month"
+              value={filterMonth}
+              onChange={(e) => setFilterMonth(e.target.value)}
+              className="px-3 py-1 border rounded text-sm"
+            />
+            {filterMonth && (
+              <button
+                onClick={() => setFilterMonth('')}
+                className="text-sm text-slate-500 hover:text-slate-700"
+              >
+                Clear filter
+              </button>
+            )}
           </div>
-        )}
-      </div>
+
+          {/* Summary */}
+          <div className={`bg-white rounded-lg shadow p-4 border-l-4 ${
+            isCompany ? 'border-blue-500' : 'border-purple-500'
+          }`}>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-600">
+                {filterMonth
+                  ? `${isCompany ? 'Company' : 'Personal'} expenses for ${new Date(filterMonth + '-01').toLocaleDateString('en-SG', { month: 'long', year: 'numeric' })}`
+                  : `Total ${isCompany ? 'Company' : 'Personal'} Expenses`}
+              </span>
+              <span className={`text-2xl font-bold ${isCompany ? 'text-blue-600' : 'text-purple-600'}`}>
+                {formatCurrency(monthlyTotal)}
+              </span>
+            </div>
+          </div>
+
+          {/* Expense List */}
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            {filteredExpenses.length === 0 ? (
+              <div className="p-8 text-center text-slate-500">
+                <p>No {isCompany ? 'company' : 'personal'} expenses found</p>
+                <button
+                  onClick={handleAddNew}
+                  className={`mt-4 hover:underline ${isCompany ? 'text-blue-600' : 'text-purple-600'}`}
+                >
+                  Add your first expense
+                </button>
+              </div>
+            ) : (
+              <div className="divide-y">
+                {filteredExpenses.map((expense) => (
+                  <div key={expense.id} className="p-4 flex justify-between items-center hover:bg-slate-50">
+                    <div className="flex items-center gap-3">
+                      <span className={`w-10 h-10 flex items-center justify-center rounded-full text-lg ${
+                        isCompany ? 'bg-blue-100' : 'bg-purple-100'
+                      }`}>
+                        {isCompany ? '🏢' : '👤'}
+                      </span>
+                      <div>
+                        <p className="font-medium">{expense.description}</p>
+                        <p className="text-sm text-slate-500">
+                          {EXPENSE_CATEGORIES[expense.category]?.label || expense.category}
+                          {expense.vendor && ` • ${expense.vendor}`}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <p className={`font-medium ${isCompany ? 'text-blue-600' : 'text-purple-600'}`}>
+                          -{formatCurrency(expense.amount)}
+                        </p>
+                        <p className="text-xs text-slate-400">{formatDate(expense.date)}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleEdit(expense)}
+                          className="text-slate-400 hover:text-blue-600"
+                          title="Edit"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={() => handleDelete(expense.id)}
+                          className="text-slate-400 hover:text-red-600"
+                          title="Delete"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Receipts Tab */}
+      {tabView === 'receipts' && (
+        <div className="space-y-4">
+          <div className="flex justify-end">
+            <button
+              onClick={() => setShowReceiptUpload(true)}
+              className={`px-4 py-2 text-white rounded hover:opacity-90 ${
+                isCompany ? 'bg-blue-600' : 'bg-purple-600'
+              }`}
+            >
+              + Upload Receipt
+            </button>
+          </div>
+
+          {data.receipts.length === 0 ? (
+            <div className="bg-white rounded-lg shadow p-8 text-center text-slate-500">
+              <p className="text-4xl mb-4">🧾</p>
+              <p>No receipts uploaded yet</p>
+              <button
+                onClick={() => setShowReceiptUpload(true)}
+                className={`mt-4 hover:underline ${isCompany ? 'text-blue-600' : 'text-purple-600'}`}
+              >
+                Upload your first receipt
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+              {data.receipts.map((receipt) => (
+                <div
+                  key={receipt.id}
+                  onClick={() => setViewReceipt(receipt)}
+                  className="bg-white rounded-lg shadow overflow-hidden cursor-pointer hover:shadow-lg transition group"
+                >
+                  <div className="aspect-square bg-slate-100 relative">
+                    {receipt.fileType === 'pdf' ? (
+                      <div className="w-full h-full flex items-center justify-center bg-red-50">
+                        <span className="text-4xl">📄</span>
+                      </div>
+                    ) : (
+                      <img
+                        src={receipt.imageData}
+                        alt={receipt.fileName}
+                        className="w-full h-full object-cover"
+                      />
+                    )}
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition" />
+                  </div>
+                  <div className="p-2">
+                    <p className="text-sm font-medium truncate">{receipt.fileName}</p>
+                    <p className="text-xs text-slate-500">{formatDate(receipt.uploadDate)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Bank Statements Tab */}
+      {tabView === 'bank' && (
+        <div className="space-y-4">
+          <div className="flex justify-end">
+            <button
+              onClick={() => setShowBankUpload(true)}
+              className={`px-4 py-2 text-white rounded hover:opacity-90 ${
+                isCompany ? 'bg-blue-600' : 'bg-purple-600'
+              }`}
+            >
+              + Upload Statement
+            </button>
+          </div>
+
+          {/* Summary */}
+          {data.bankStatements.length > 0 && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white rounded-lg shadow p-4">
+                <p className="text-sm text-slate-500">Total Credits</p>
+                <p className="text-2xl font-bold text-green-600">
+                  {formatCurrency(
+                    data.bankStatements
+                      .flatMap((s) => s.transactions)
+                      .filter((t) => t.type === 'credit')
+                      .reduce((sum, t) => sum + t.amount, 0)
+                  )}
+                </p>
+              </div>
+              <div className="bg-white rounded-lg shadow p-4">
+                <p className="text-sm text-slate-500">Total Debits</p>
+                <p className="text-2xl font-bold text-red-600">
+                  {formatCurrency(
+                    data.bankStatements
+                      .flatMap((s) => s.transactions)
+                      .filter((t) => t.type === 'debit')
+                      .reduce((sum, t) => sum + t.amount, 0)
+                  )}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {data.bankStatements.length === 0 ? (
+            <div className="bg-white rounded-lg shadow p-8 text-center text-slate-500">
+              <p className="text-4xl mb-4">🏦</p>
+              <p>No bank statements uploaded yet</p>
+              <p className="text-sm mt-2">Upload PDF or CSV files from your bank</p>
+              <button
+                onClick={() => setShowBankUpload(true)}
+                className={`mt-4 hover:underline ${isCompany ? 'text-blue-600' : 'text-purple-600'}`}
+              >
+                Upload your first statement
+              </button>
+            </div>
+          ) : (
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="divide-y">
+                {data.bankStatements.map((statement) => {
+                  const credits = statement.transactions
+                    .filter((t) => t.type === 'credit')
+                    .reduce((sum, t) => sum + t.amount, 0);
+                  const debits = statement.transactions
+                    .filter((t) => t.type === 'debit')
+                    .reduce((sum, t) => sum + t.amount, 0);
+
+                  return (
+                    <div
+                      key={statement.id}
+                      onClick={() => setViewStatement(statement)}
+                      className="p-4 flex justify-between items-center hover:bg-slate-50 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">
+                          {statement.fileType === 'pdf' ? '📄' : '📊'}
+                        </span>
+                        <div>
+                          <p className="font-medium">{statement.fileName}</p>
+                          <p className="text-sm text-slate-500">
+                            {statement.transactions.length > 0
+                              ? `${statement.transactions.length} transactions`
+                              : 'PDF attachment'} • {formatDate(statement.uploadDate)}
+                          </p>
+                        </div>
+                      </div>
+                      {statement.transactions.length > 0 && (
+                        <div className="text-right">
+                          <p className="text-sm text-green-600">+{formatCurrency(credits)}</p>
+                          <p className="text-sm text-red-600">-{formatCurrency(debits)}</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -417,6 +695,607 @@ function ExpenseForm({ expense, defaultType, onSave, onCancel }: ExpenseFormProp
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+// Receipt Upload Component
+interface ReceiptUploadProps {
+  onUpload: (receipt: Omit<Receipt, 'id'>) => void;
+  onCancel: () => void;
+}
+
+function ReceiptUpload({ onUpload, onCancel }: ReceiptUploadProps) {
+  const [imageData, setImageData] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string>('');
+  const [fileType, setFileType] = useState<string>('image');
+  const [notes, setNotes] = useState<string>('');
+  const [useCamera, setUseCamera] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, [stream]);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setFileName(file.name);
+      setFileType(file.type.includes('pdf') ? 'pdf' : 'image');
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setImageData(event.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const startCamera = async () => {
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' },
+      });
+      setStream(mediaStream);
+      setUseCamera(true);
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream;
+      }
+    } catch (error) {
+      alert('Could not access camera. Please upload a file instead.');
+      console.error('Camera error:', error);
+    }
+  };
+
+  const stopCamera = () => {
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop());
+      setStream(null);
+    }
+    setUseCamera(false);
+  };
+
+  const capturePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        setImageData(dataUrl);
+        setFileName(`receipt-${new Date().toISOString().slice(0, 10)}.jpg`);
+        setFileType('image');
+        stopCamera();
+      }
+    }
+  };
+
+  const handleSubmit = () => {
+    if (!imageData) return;
+
+    onUpload({
+      fileName,
+      imageData,
+      fileType,
+      uploadDate: new Date().toISOString(),
+      notes: notes || undefined,
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-slate-800">Upload Receipt</h2>
+        <button
+          onClick={() => {
+            stopCamera();
+            onCancel();
+          }}
+          className="text-slate-600 hover:text-slate-800"
+        >
+          ✕ Close
+        </button>
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-4 space-y-4">
+        {!imageData && !useCamera && (
+          <div className="flex flex-col gap-4">
+            <button
+              onClick={startCamera}
+              className="flex items-center justify-center gap-2 w-full py-8 border-2 border-dashed border-slate-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition"
+            >
+              <span className="text-3xl">📷</span>
+              <span className="text-slate-600">Take Photo</span>
+            </button>
+
+            <div className="text-center text-slate-400">or</div>
+
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center justify-center gap-2 w-full py-8 border-2 border-dashed border-slate-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition"
+            >
+              <span className="text-3xl">📁</span>
+              <span className="text-slate-600">Upload File (Image or PDF)</span>
+            </button>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,.pdf"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+          </div>
+        )}
+
+        {useCamera && !imageData && (
+          <div className="space-y-4">
+            <div className="relative bg-black rounded-lg overflow-hidden">
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                className="w-full"
+              />
+            </div>
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={capturePhoto}
+                className="px-6 py-3 bg-blue-600 text-white rounded-full hover:bg-blue-700"
+              >
+                📸 Capture
+              </button>
+              <button
+                onClick={stopCamera}
+                className="px-6 py-3 border rounded-full hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {imageData && (
+          <div className="space-y-4">
+            <div className="relative">
+              {fileType === 'pdf' ? (
+                <div className="w-full h-48 flex items-center justify-center bg-red-50 rounded-lg">
+                  <div className="text-center">
+                    <span className="text-5xl">📄</span>
+                    <p className="mt-2 text-slate-600">{fileName}</p>
+                  </div>
+                </div>
+              ) : (
+                <img
+                  src={imageData}
+                  alt="Receipt preview"
+                  className="w-full max-h-96 object-contain rounded-lg"
+                />
+              )}
+              <button
+                onClick={() => {
+                  setImageData(null);
+                  setFileName('');
+                }}
+                className="absolute top-2 right-2 w-8 h-8 bg-red-500 text-white rounded-full hover:bg-red-600"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-1">File Name</label>
+              <input
+                type="text"
+                value={fileName}
+                onChange={(e) => setFileName(e.target.value)}
+                className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-1">Notes</label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows={2}
+                placeholder="Optional notes about this receipt"
+              />
+            </div>
+
+            <div className="flex gap-4">
+              <button
+                onClick={handleSubmit}
+                className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Save Receipt
+              </button>
+              <button
+                onClick={onCancel}
+                className="px-6 py-2 border rounded hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <canvas ref={canvasRef} className="hidden" />
+    </div>
+  );
+}
+
+// Receipt View Component
+interface ReceiptViewProps {
+  receipt: Receipt;
+  onClose: () => void;
+  onDelete: () => void;
+}
+
+function ReceiptView({ receipt, onClose, onDelete }: ReceiptViewProps) {
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <button onClick={onClose} className="text-slate-600 hover:text-slate-800">
+          ← Back
+        </button>
+        <button
+          onClick={onDelete}
+          className="px-4 py-2 text-red-600 border border-red-600 rounded hover:bg-red-50"
+        >
+          🗑️ Delete
+        </button>
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-4">
+        {receipt.fileType === 'pdf' ? (
+          <div className="w-full h-96 flex items-center justify-center bg-red-50 rounded-lg">
+            <div className="text-center">
+              <span className="text-6xl">📄</span>
+              <p className="mt-4 text-slate-600 font-medium">{receipt.fileName}</p>
+              <a
+                href={receipt.imageData}
+                download={receipt.fileName}
+                className="mt-4 inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Download PDF
+              </a>
+            </div>
+          </div>
+        ) : (
+          <img
+            src={receipt.imageData}
+            alt={receipt.fileName}
+            className="w-full max-h-[70vh] object-contain rounded-lg"
+          />
+        )}
+
+        <div className="mt-4 space-y-2">
+          <p className="font-medium">{receipt.fileName}</p>
+          <p className="text-sm text-slate-500">Uploaded: {formatDate(receipt.uploadDate)}</p>
+          {receipt.notes && (
+            <p className="text-sm text-slate-600 mt-2">{receipt.notes}</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Bank Upload Component
+interface BankUploadProps {
+  onUpload: (statement: Omit<BankStatement, 'id'>) => void;
+  onCancel: () => void;
+}
+
+function BankUpload({ onUpload, onCancel }: BankUploadProps) {
+  const [fileName, setFileName] = useState<string>('');
+  const [fileType, setFileType] = useState<'csv' | 'pdf' | 'other'>('csv');
+  const [fileData, setFileData] = useState<string>('');
+  const [transactions, setTransactions] = useState<BankTransaction[]>([]);
+  const [error, setError] = useState<string>('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setFileName(file.name);
+    setError('');
+    setTransactions([]);
+
+    const extension = file.name.split('.').pop()?.toLowerCase();
+
+    if (extension === 'pdf') {
+      setFileType('pdf');
+      // Store PDF as base64 for record-keeping
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setFileData(event.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    } else if (extension === 'csv') {
+      setFileType('csv');
+      try {
+        const content = await file.text();
+        setFileData(content);
+        const parsed = parseCSVBankStatement(content);
+
+        if (parsed.length === 0) {
+          setError('Could not parse transactions. CSV should have: Date, Description, Amount columns');
+        } else {
+          setTransactions(parsed);
+        }
+      } catch (err) {
+        setError('Failed to read the CSV file.');
+        console.error(err);
+      }
+    } else {
+      setFileType('other');
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setFileData(event.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSubmit = () => {
+    if (!fileName) return;
+
+    onUpload({
+      fileName,
+      fileType,
+      fileData: fileType !== 'csv' ? fileData : undefined,
+      uploadDate: new Date().toISOString(),
+      transactions,
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-slate-800">Upload Bank Statement</h2>
+        <button onClick={onCancel} className="text-slate-600 hover:text-slate-800">
+          ✕ Close
+        </button>
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-4 space-y-4">
+        {!fileName && (
+          <>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
+              <p className="font-medium text-blue-800 mb-2">Supported Formats:</p>
+              <ul className="text-blue-700 space-y-1">
+                <li>• <strong>PDF</strong> - Bank statement PDFs (stored as attachment)</li>
+                <li>• <strong>CSV</strong> - Transaction data (auto-parsed)</li>
+                <li>• <strong>Other</strong> - Any file for record-keeping</li>
+              </ul>
+            </div>
+
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center justify-center gap-2 w-full py-8 border-2 border-dashed border-slate-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition"
+            >
+              <span className="text-3xl">📄</span>
+              <span className="text-slate-600">Select File (PDF, CSV, etc.)</span>
+            </button>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.csv,.xls,.xlsx,.txt"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+          </>
+        )}
+
+        {fileName && (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">
+                  {fileType === 'pdf' ? '📄' : fileType === 'csv' ? '📊' : '📁'}
+                </span>
+                <div>
+                  <p className="font-medium">{fileName}</p>
+                  <p className="text-sm text-slate-500">
+                    {fileType === 'csv' && transactions.length > 0
+                      ? `${transactions.length} transactions found`
+                      : fileType === 'pdf'
+                      ? 'PDF attachment'
+                      : 'File attachment'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setFileName('');
+                  setFileData('');
+                  setTransactions([]);
+                  setError('');
+                }}
+                className="text-red-600 hover:underline text-sm"
+              >
+                Remove
+              </button>
+            </div>
+
+            {error && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-700">
+                {error}
+                <p className="mt-2">The file will be saved as an attachment for your records.</p>
+              </div>
+            )}
+
+            {/* Transaction Preview */}
+            {transactions.length > 0 && (
+              <div className="max-h-64 overflow-auto border rounded-lg">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 sticky top-0">
+                    <tr>
+                      <th className="text-left p-2">Date</th>
+                      <th className="text-left p-2">Description</th>
+                      <th className="text-right p-2">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {transactions.slice(0, 10).map((t, i) => (
+                      <tr key={i}>
+                        <td className="p-2">{formatDate(t.date)}</td>
+                        <td className="p-2 truncate max-w-xs">{t.description}</td>
+                        <td className={`p-2 text-right ${t.type === 'credit' ? 'text-green-600' : 'text-red-600'}`}>
+                          {t.type === 'credit' ? '+' : '-'}{formatCurrency(t.amount)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {transactions.length > 10 && (
+                  <p className="p-2 text-center text-slate-500 text-sm bg-slate-50">
+                    ... and {transactions.length - 10} more transactions
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div className="flex gap-4">
+              <button
+                onClick={handleSubmit}
+                className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                {fileType === 'csv' && transactions.length > 0 ? 'Import Statement' : 'Save Attachment'}
+              </button>
+              <button
+                onClick={onCancel}
+                className="px-6 py-2 border rounded hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Statement View Component
+interface StatementViewProps {
+  statement: BankStatement;
+  onClose: () => void;
+  onDelete: () => void;
+}
+
+function StatementView({ statement, onClose, onDelete }: StatementViewProps) {
+  const credits = statement.transactions
+    .filter((t) => t.type === 'credit')
+    .reduce((sum, t) => sum + t.amount, 0);
+  const debits = statement.transactions
+    .filter((t) => t.type === 'debit')
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <button onClick={onClose} className="text-slate-600 hover:text-slate-800">
+          ← Back
+        </button>
+        <button
+          onClick={onDelete}
+          className="px-4 py-2 text-red-600 border border-red-600 rounded hover:bg-red-50"
+        >
+          🗑️ Delete
+        </button>
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-4">
+        <div className="flex items-center gap-3 mb-4">
+          <span className="text-3xl">
+            {statement.fileType === 'pdf' ? '📄' : '📊'}
+          </span>
+          <div>
+            <h3 className="font-semibold text-lg">{statement.fileName}</h3>
+            <p className="text-sm text-slate-500">Uploaded {formatDate(statement.uploadDate)}</p>
+          </div>
+        </div>
+
+        {statement.fileType === 'pdf' && statement.fileData && (
+          <div className="mb-4">
+            <a
+              href={statement.fileData}
+              download={statement.fileName}
+              className="inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Download PDF
+            </a>
+          </div>
+        )}
+
+        {statement.transactions.length > 0 && (
+          <>
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              <div>
+                <p className="text-sm text-slate-500">Transactions</p>
+                <p className="text-xl font-bold">{statement.transactions.length}</p>
+              </div>
+              <div>
+                <p className="text-sm text-slate-500">Total Credits</p>
+                <p className="text-xl font-bold text-green-600">{formatCurrency(credits)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-slate-500">Total Debits</p>
+                <p className="text-xl font-bold text-red-600">{formatCurrency(debits)}</p>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto border rounded-lg">
+              <table className="w-full">
+                <thead className="bg-slate-50 text-left">
+                  <tr>
+                    <th className="p-3 font-medium text-slate-600">Date</th>
+                    <th className="p-3 font-medium text-slate-600">Description</th>
+                    <th className="p-3 font-medium text-slate-600 text-right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {statement.transactions.map((t) => (
+                    <tr key={t.id} className="hover:bg-slate-50">
+                      <td className="p-3 text-slate-600">{formatDate(t.date)}</td>
+                      <td className="p-3">{t.description}</td>
+                      <td className={`p-3 text-right font-medium ${
+                        t.type === 'credit' ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {t.type === 'credit' ? '+' : '-'}{formatCurrency(t.amount)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+
+        {statement.transactions.length === 0 && (
+          <p className="text-slate-500 text-center py-4">
+            This is a file attachment with no parsed transactions.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

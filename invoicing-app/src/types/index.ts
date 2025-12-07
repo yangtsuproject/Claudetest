@@ -84,7 +84,8 @@ export interface Receipt {
   id: string;
   expenseId?: string;
   fileName: string;
-  imageData: string; // Base64 encoded image
+  imageData: string; // Base64 encoded image or PDF
+  fileType?: string; // 'image' | 'pdf'
   uploadDate: string;
   notes?: string;
 }
@@ -104,6 +105,8 @@ export interface BankTransaction {
 export interface BankStatement {
   id: string;
   fileName: string;
+  fileType?: 'csv' | 'pdf' | 'other'; // File type for proper handling
+  fileData?: string; // Base64 encoded PDF or other file
   uploadDate: string;
   transactions: BankTransaction[];
 }
