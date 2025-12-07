@@ -1,9 +1,12 @@
 import { neon } from '@neondatabase/serverless';
 
 export const getDb = () => {
-  const databaseUrl = process.env.DATABASE_URL;
+  // Check multiple possible environment variable names
+  const databaseUrl = process.env.POSTGRES_URL ||
+                      process.env.DATABASE_URL ||
+                      process.env.STORAGE_DATABASE_URL;
   if (!databaseUrl) {
-    throw new Error('DATABASE_URL environment variable is not set');
+    throw new Error('Database URL environment variable is not set (checked POSTGRES_URL, DATABASE_URL, STORAGE_DATABASE_URL)');
   }
   return neon(databaseUrl);
 };

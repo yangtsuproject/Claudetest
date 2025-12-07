@@ -3,13 +3,14 @@ import { getAppData, saveAppData, initializeDatabase } from '@/lib/db';
 
 // GET - Load data from database
 export async function GET() {
-  // Check if DATABASE_URL exists
-  if (!process.env.DATABASE_URL) {
-    console.error('DATABASE_URL is not set');
+  // Check if database URL exists
+  const dbUrl = process.env.POSTGRES_URL || process.env.DATABASE_URL || process.env.STORAGE_DATABASE_URL;
+  if (!dbUrl) {
+    console.error('Database URL is not set');
     return NextResponse.json({
       success: false,
       error: 'Database not configured',
-      debug: 'DATABASE_URL environment variable is missing'
+      debug: 'No database URL found (checked POSTGRES_URL, DATABASE_URL, STORAGE_DATABASE_URL)'
     }, { status: 500 });
   }
 
@@ -32,9 +33,10 @@ export async function GET() {
 
 // POST - Save data to database
 export async function POST(request: Request) {
-  // Check if DATABASE_URL exists
-  if (!process.env.DATABASE_URL) {
-    console.error('DATABASE_URL is not set');
+  // Check if database URL exists
+  const dbUrl = process.env.POSTGRES_URL || process.env.DATABASE_URL || process.env.STORAGE_DATABASE_URL;
+  if (!dbUrl) {
+    console.error('Database URL is not set');
     return NextResponse.json({
       success: false,
       error: 'Database not configured'
