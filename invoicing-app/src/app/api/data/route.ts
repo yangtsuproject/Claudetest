@@ -3,6 +3,16 @@ import { getAppData, saveAppData, initializeDatabase } from '@/lib/db';
 
 // GET - Load data from database
 export async function GET() {
+  // Check if DATABASE_URL exists
+  if (!process.env.DATABASE_URL) {
+    console.error('DATABASE_URL is not set');
+    return NextResponse.json({
+      success: false,
+      error: 'Database not configured',
+      debug: 'DATABASE_URL environment variable is missing'
+    }, { status: 500 });
+  }
+
   try {
     await initializeDatabase();
     const data = await getAppData();
@@ -10,7 +20,11 @@ export async function GET() {
   } catch (error) {
     console.error('Failed to load data:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to load data' },
+      {
+        success: false,
+        error: 'Failed to load data',
+        debug: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }
@@ -18,6 +32,15 @@ export async function GET() {
 
 // POST - Save data to database
 export async function POST(request: Request) {
+  // Check if DATABASE_URL exists
+  if (!process.env.DATABASE_URL) {
+    console.error('DATABASE_URL is not set');
+    return NextResponse.json({
+      success: false,
+      error: 'Database not configured'
+    }, { status: 500 });
+  }
+
   try {
     const body = await request.json();
     await initializeDatabase();
@@ -26,7 +49,11 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Failed to save data:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to save data' },
+      {
+        success: false,
+        error: 'Failed to save data',
+        debug: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }
