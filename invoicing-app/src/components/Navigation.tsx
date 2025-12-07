@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useApp } from '@/context/AppContext';
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: '📊' },
@@ -16,6 +17,7 @@ const navItems = [
 export default function Navigation() {
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { isSyncing, syncError } = useApp();
 
   return (
     <>
@@ -41,6 +43,28 @@ export default function Navigation() {
               <span>{item.label}</span>
             </Link>
           ))}
+        </div>
+
+        {/* Sync Status */}
+        <div className="px-4 py-2 border-t border-slate-700">
+          <div className="flex items-center gap-2 text-xs">
+            {isSyncing ? (
+              <>
+                <span className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span>
+                <span className="text-yellow-400">Syncing...</span>
+              </>
+            ) : syncError ? (
+              <>
+                <span className="w-2 h-2 bg-red-400 rounded-full"></span>
+                <span className="text-red-400">Offline</span>
+              </>
+            ) : (
+              <>
+                <span className="w-2 h-2 bg-green-400 rounded-full"></span>
+                <span className="text-green-400">Synced</span>
+              </>
+            )}
+          </div>
         </div>
 
         <div className="p-4 border-t border-slate-700 text-xs text-slate-400">
@@ -96,8 +120,18 @@ export default function Navigation() {
       </nav>
 
       {/* Mobile Header */}
-      <header className="md:hidden fixed top-0 left-0 right-0 bg-slate-900 text-white p-4 z-40">
+      <header className="md:hidden fixed top-0 left-0 right-0 bg-slate-900 text-white p-4 z-40 flex justify-between items-center">
         <h1 className="text-lg font-bold">Akros Digital</h1>
+        {/* Mobile Sync Status */}
+        <div className="flex items-center gap-1 text-xs">
+          {isSyncing ? (
+            <span className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span>
+          ) : syncError ? (
+            <span className="w-2 h-2 bg-red-400 rounded-full"></span>
+          ) : (
+            <span className="w-2 h-2 bg-green-400 rounded-full"></span>
+          )}
+        </div>
       </header>
     </>
   );

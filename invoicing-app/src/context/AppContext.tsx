@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from 'react';
 import {
   AppData,
   Invoice,
@@ -15,6 +15,8 @@ import { loadData, saveData, getDefaultAppData, generateId } from '@/lib/storage
 interface AppContextType {
   data: AppData;
   isLoaded: boolean;
+  isSyncing: boolean;
+  syncError: string | null;
 
   // Company
   updateCompanyInfo: (info: Partial<CompanyInfo>) => void;
@@ -43,25 +45,136 @@ interface AppContextType {
   exportData: () => void;
   importData: (data: AppData) => void;
   clearAllData: () => void;
+  refreshFromServer: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+// API functions
+const loadFromServer = async (): Promise<AppData | null> => {
+  try {
+    const response = await fetch('/api/data');
+    const result = await response.json();
+    if (result.success && result.data && Object.keys(result.data).length > 0) {
+      return result.data as AppData;
+    }
+    return null;
+  } catch (error) {
+    console.error('Failed to load from server:', error);
+    return null;
+  }
+};
+
+const saveToServer = async (data: AppData): Promise<boolean> => {
+  try {
+    const response = await fetch('/api/data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const result = await response.json();
+    return result.success;
+  } catch (error) {
+    console.error('Failed to save to server:', error);
+    return false;
+  }
+};
+
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [data, setData] = useState<AppData>(getDefaultAppData());
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSavedRef = useRef<string>('');
 
+  // Load data on mount
   useEffect(() => {
-    const loaded = loadData();
-    setData(loaded);
-    setIsLoaded(true);
+    const initializeData = async () => {
+      // Try to load from server first
+      const serverData = await loadFromServer();
+
+      if (serverData) {
+        // Merge with defaults to handle any missing fields
+        const mergedData = {
+          ...getDefaultAppData(),
+          ...serverData,
+          companyInfo: { ...getDefaultAppData().companyInfo, ...serverData.companyInfo },
+          settings: { ...getDefaultAppData().settings, ...serverData.settings },
+        };
+        setData(mergedData);
+        saveData(mergedData); // Also save to localStorage as backup
+      } else {
+        // Fall back to localStorage
+        const localData = loadData();
+        setData(localData);
+
+        // Try to sync local data to server
+        if (localData.invoices.length > 0 || localData.expenses.length > 0) {
+          await saveToServer(localData);
+        }
+      }
+
+      setIsLoaded(true);
+    };
+
+    initializeData();
   }, []);
 
+  // Debounced save to server
+  const syncToServer = useCallback(async (newData: AppData) => {
+    const dataString = JSON.stringify(newData);
+
+    // Don't save if data hasn't changed
+    if (dataString === lastSavedRef.current) {
+      return;
+    }
+
+    setIsSyncing(true);
+    setSyncError(null);
+
+    // Save to localStorage immediately
+    saveData(newData);
+
+    // Debounce server save
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = setTimeout(async () => {
+      const success = await saveToServer(newData);
+      if (success) {
+        lastSavedRef.current = dataString;
+        setSyncError(null);
+      } else {
+        setSyncError('Failed to sync to cloud. Data saved locally.');
+      }
+      setIsSyncing(false);
+    }, 1000); // Wait 1 second before syncing to server
+  }, []);
+
+  // Save data when it changes
   useEffect(() => {
     if (isLoaded) {
-      saveData(data);
+      syncToServer(data);
     }
-  }, [data, isLoaded]);
+  }, [data, isLoaded, syncToServer]);
+
+  const refreshFromServer = async () => {
+    setIsSyncing(true);
+    const serverData = await loadFromServer();
+    if (serverData) {
+      const mergedData = {
+        ...getDefaultAppData(),
+        ...serverData,
+        companyInfo: { ...getDefaultAppData().companyInfo, ...serverData.companyInfo },
+        settings: { ...getDefaultAppData().settings, ...serverData.settings },
+      };
+      setData(mergedData);
+      lastSavedRef.current = JSON.stringify(mergedData);
+    }
+    setIsSyncing(false);
+  };
 
   const updateCompanyInfo = (info: Partial<CompanyInfo>) => {
     setData((prev) => ({
@@ -224,6 +337,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       value={{
         data,
         isLoaded,
+        isSyncing,
+        syncError,
         updateCompanyInfo,
         updateSettings,
         addInvoice,
@@ -240,6 +355,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         exportData,
         importData,
         clearAllData,
+        refreshFromServer,
       }}
     >
       {children}
