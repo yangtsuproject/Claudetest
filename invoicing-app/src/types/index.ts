@@ -119,6 +119,12 @@ export interface CompanyInfo {
   bankAccountName?: string;
 }
 
+export interface CustomCategory {
+  id: string;
+  label: string;
+  type: 'company' | 'personal' | 'both';
+}
+
 export interface AppData {
   companyInfo: CompanyInfo;
   invoices: Invoice[];
@@ -126,6 +132,7 @@ export interface AppData {
   receipts: Receipt[];
   bankStatements: BankStatement[];
   settings: AppSettings;
+  customCategories: CustomCategory[];
 }
 
 export interface AppSettings {

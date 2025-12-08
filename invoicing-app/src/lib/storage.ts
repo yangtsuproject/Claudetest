@@ -9,6 +9,7 @@ export const getDefaultAppData = (): AppData => ({
   receipts: [],
   bankStatements: [],
   settings: DEFAULT_SETTINGS,
+  customCategories: [],
 });
 
 export const loadData = (): AppData => {

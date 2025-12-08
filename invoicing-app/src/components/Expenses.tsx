@@ -3,18 +3,27 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useApp } from '@/context/AppContext';
-import { Expense, ExpenseCategory, EXPENSE_CATEGORIES, Receipt, BankStatement, BankTransaction } from '@/types';
+import { Expense, ExpenseCategory, EXPENSE_CATEGORIES, Receipt, BankStatement, BankTransaction, CustomCategory } from '@/types';
 import { formatCurrency, formatDate, generateId } from '@/lib/storage';
 import { exportExpensesToCSV, parseCSVBankStatement } from '@/lib/csv';
 import { parsePDFFile, extractTransactionsFromText, ParsedTransaction, categorizeTransaction } from '@/lib/pdfParser';
 import SpendingAnalytics from './SpendingAnalytics';
 
 type ExpenseType = 'company' | 'personal';
-type TabView = 'expenses' | 'receipts' | 'bank' | 'analytics';
+type TabView = 'expenses' | 'receipts' | 'bank' | 'analytics' | 'categories';
+
+// Helper to merge built-in and custom categories
+function getAllCategories(customCategories: CustomCategory[]): Record<string, { label: string; type: 'company' | 'personal' | 'both' }> {
+  const all: Record<string, { label: string; type: 'company' | 'personal' | 'both' }> = { ...EXPENSE_CATEGORIES };
+  customCategories.forEach(cat => {
+    all[cat.id] = { label: cat.label, type: cat.type };
+  });
+  return all;
+}
 
 export default function Expenses() {
   const searchParams = useSearchParams();
-  const { data, addExpense, updateExpense, deleteExpense, addReceipt, deleteReceipt, addBankStatement, deleteBankStatement, isLoaded } = useApp();
+  const { data, addExpense, updateExpense, deleteExpense, deleteMultipleExpenses, addReceipt, deleteReceipt, addBankStatement, deleteBankStatement, addCustomCategory, deleteCustomCategory, isLoaded } = useApp();
   const [showForm, setShowForm] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [viewType, setViewType] = useState<ExpenseType>('company');
@@ -29,6 +38,10 @@ export default function Expenses() {
   // Bank states
   const [showBankUpload, setShowBankUpload] = useState(false);
   const [viewStatement, setViewStatement] = useState<BankStatement | null>(null);
+
+  // Mass delete states
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedExpenses, setSelectedExpenses] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const typeParam = searchParams.get('type') as ExpenseType;
@@ -171,6 +184,7 @@ export default function Expenses() {
       <ExpenseForm
         expense={editingExpense}
         defaultType={defaultType}
+        customCategories={data.customCategories || []}
         onSave={handleSave}
         onCancel={() => {
           setShowForm(false);
@@ -254,13 +268,23 @@ export default function Expenses() {
         >
           📊 Analytics
         </button>
+        <button
+          onClick={() => setTabView('categories')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition ${
+            tabView === 'categories'
+              ? `${isCompany ? 'border-blue-600 text-blue-600' : 'border-purple-600 text-purple-600'}`
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          🏷️ Categories
+        </button>
       </div>
 
       {/* Expenses Tab */}
       {tabView === 'expenses' && (
         <div className="space-y-4">
           {/* Actions */}
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={() => exportExpensesToCSV(filteredExpenses)}
               className="px-4 py-2 text-slate-600 border rounded hover:bg-slate-50"
@@ -275,6 +299,45 @@ export default function Expenses() {
             >
               + Add Expense
             </button>
+            <button
+              onClick={() => {
+                setSelectMode(!selectMode);
+                setSelectedExpenses(new Set());
+              }}
+              className={`px-4 py-2 border rounded hover:bg-slate-50 ${
+                selectMode ? 'bg-slate-100 text-slate-800' : 'text-slate-600'
+              }`}
+            >
+              {selectMode ? '✕ Cancel Selection' : '☑️ Select Multiple'}
+            </button>
+            {selectMode && selectedExpenses.size > 0 && (
+              <button
+                onClick={() => {
+                  if (confirm(`Delete ${selectedExpenses.size} expense(s)?`)) {
+                    deleteMultipleExpenses(Array.from(selectedExpenses));
+                    setSelectedExpenses(new Set());
+                    setSelectMode(false);
+                  }
+                }}
+                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+              >
+                🗑️ Delete Selected ({selectedExpenses.size})
+              </button>
+            )}
+            {selectMode && filteredExpenses.length > 0 && (
+              <button
+                onClick={() => {
+                  if (selectedExpenses.size === filteredExpenses.length) {
+                    setSelectedExpenses(new Set());
+                  } else {
+                    setSelectedExpenses(new Set(filteredExpenses.map(e => e.id)));
+                  }
+                }}
+                className="px-4 py-2 text-slate-600 border rounded hover:bg-slate-50"
+              >
+                {selectedExpenses.size === filteredExpenses.length ? 'Deselect All' : 'Select All'}
+              </button>
+            )}
           </div>
 
           {/* Month Filter */}
@@ -325,18 +388,45 @@ export default function Expenses() {
               </div>
             ) : (
               <div className="divide-y">
-                {filteredExpenses.map((expense) => (
-                  <div key={expense.id} className="p-4 flex justify-between items-center hover:bg-slate-50">
+                {filteredExpenses.map((expense) => {
+                  const allCategories = getAllCategories(data.customCategories || []);
+                  const categoryLabel = allCategories[expense.category]?.label || expense.category;
+
+                  return (
+                  <div
+                    key={expense.id}
+                    className={`p-4 flex justify-between items-center hover:bg-slate-50 ${
+                      selectMode && selectedExpenses.has(expense.id) ? 'bg-blue-50' : ''
+                    }`}
+                    onClick={selectMode ? () => {
+                      const newSelected = new Set(selectedExpenses);
+                      if (newSelected.has(expense.id)) {
+                        newSelected.delete(expense.id);
+                      } else {
+                        newSelected.add(expense.id);
+                      }
+                      setSelectedExpenses(newSelected);
+                    } : undefined}
+                  >
                     <div className="flex items-center gap-3">
-                      <span className={`w-10 h-10 flex items-center justify-center rounded-full text-lg ${
-                        isCompany ? 'bg-blue-100' : 'bg-purple-100'
-                      }`}>
-                        {isCompany ? '🏢' : '👤'}
-                      </span>
+                      {selectMode ? (
+                        <input
+                          type="checkbox"
+                          checked={selectedExpenses.has(expense.id)}
+                          onChange={() => {}}
+                          className="w-5 h-5 rounded border-slate-300"
+                        />
+                      ) : (
+                        <span className={`w-10 h-10 flex items-center justify-center rounded-full text-lg ${
+                          isCompany ? 'bg-blue-100' : 'bg-purple-100'
+                        }`}>
+                          {isCompany ? '🏢' : '👤'}
+                        </span>
+                      )}
                       <div>
                         <p className="font-medium">{expense.description}</p>
                         <p className="text-sm text-slate-500">
-                          {EXPENSE_CATEGORIES[expense.category]?.label || expense.category}
+                          {categoryLabel}
                           {expense.vendor && ` • ${expense.vendor}`}
                         </p>
                       </div>
@@ -348,6 +438,7 @@ export default function Expenses() {
                         </p>
                         <p className="text-xs text-slate-400">{formatDate(expense.date)}</p>
                       </div>
+                      {!selectMode && (
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleEdit(expense)}
@@ -364,9 +455,11 @@ export default function Expenses() {
                           🗑️
                         </button>
                       </div>
+                      )}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -534,6 +627,16 @@ export default function Expenses() {
       {tabView === 'analytics' && (
         <SpendingAnalytics expenses={data.expenses} type={viewType} />
       )}
+
+      {/* Categories Tab */}
+      {tabView === 'categories' && (
+        <CategoriesManager
+          customCategories={data.customCategories || []}
+          onAdd={addCustomCategory}
+          onDelete={deleteCustomCategory}
+          isCompany={isCompany}
+        />
+      )}
     </div>
   );
 }
@@ -542,11 +645,12 @@ export default function Expenses() {
 interface ExpenseFormProps {
   expense: Expense | null;
   defaultType: ExpenseType;
+  customCategories: CustomCategory[];
   onSave: (expense: Omit<Expense, 'id' | 'createdAt' | 'updatedAt'>) => void;
   onCancel: () => void;
 }
 
-function ExpenseForm({ expense, defaultType, onSave, onCancel }: ExpenseFormProps) {
+function ExpenseForm({ expense, defaultType, customCategories, onSave, onCancel }: ExpenseFormProps) {
   const [formData, setFormData] = useState({
     date: expense?.date || new Date().toISOString().split('T')[0],
     type: expense?.type || defaultType,
@@ -558,7 +662,9 @@ function ExpenseForm({ expense, defaultType, onSave, onCancel }: ExpenseFormProp
     receiptId: expense?.receiptId || '',
   });
 
-  const availableCategories = Object.entries(EXPENSE_CATEGORIES).filter(
+  // Combine built-in and custom categories
+  const allCategories = getAllCategories(customCategories);
+  const availableCategories = Object.entries(allCategories).filter(
     ([, config]) => config.type === 'both' || config.type === formData.type
   );
 
@@ -1511,3 +1617,195 @@ function StatementView({ statement, onClose, onDelete }: StatementViewProps) {
     </div>
   );
 }
+
+// Categories Manager Component
+interface CategoriesManagerProps {
+  customCategories: CustomCategory[];
+  onAdd: (category: Omit<CustomCategory, 'id'>) => void;
+  onDelete: (id: string) => void;
+  isCompany: boolean;
+}
+
+function CategoriesManager({ customCategories, onAdd, onDelete, isCompany }: CategoriesManagerProps) {
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newLabel, setNewLabel] = useState('');
+  const [newType, setNewType] = useState<'company' | 'personal' | 'both'>('both');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newLabel.trim()) return;
+
+    onAdd({
+      label: newLabel.trim(),
+      type: newType,
+    });
+
+    setNewLabel('');
+    setNewType('both');
+    setShowAddForm(false);
+  };
+
+  const builtInCategories = Object.entries(EXPENSE_CATEGORIES);
+
+  return (
+    <div className="space-y-6">
+      {/* Add Category Button */}
+      <div className="flex justify-end">
+        <button
+          onClick={() => setShowAddForm(!showAddForm)}
+          className={`px-4 py-2 text-white rounded hover:opacity-90 ${
+            isCompany ? 'bg-blue-600' : 'bg-purple-600'
+          }`}
+        >
+          + Add Custom Category
+        </button>
+      </div>
+
+      {/* Add Form */}
+      {showAddForm && (
+        <div className="bg-white rounded-lg shadow p-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-1">
+                Category Name
+              </label>
+              <input
+                type="text"
+                value={newLabel}
+                onChange={(e) => setNewLabel(e.target.value)}
+                placeholder="e.g., Pet Care, Subscriptions, Travel"
+                className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-1">
+                Available For
+              </label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setNewType('company')}
+                  className={`flex-1 py-2 rounded ${
+                    newType === 'company'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  Company Only
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewType('personal')}
+                  className={`flex-1 py-2 rounded ${
+                    newType === 'personal'
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  Personal Only
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewType('both')}
+                  className={`flex-1 py-2 rounded ${
+                    newType === 'both'
+                      ? 'bg-green-600 text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  Both
+                </button>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className={`px-4 py-2 text-white rounded hover:opacity-90 ${
+                  isCompany ? 'bg-blue-600' : 'bg-purple-600'
+                }`}
+              >
+                Add Category
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAddForm(false)}
+                className="px-4 py-2 border rounded hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Custom Categories */}
+      {customCategories.length > 0 && (
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="p-4 border-b bg-slate-50">
+            <h3 className="font-semibold text-slate-700">Custom Categories</h3>
+          </div>
+          <div className="divide-y">
+            {customCategories.map((cat) => (
+              <div key={cat.id} className="p-4 flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <span className="w-8 h-8 flex items-center justify-center rounded-full bg-green-100 text-green-600">
+                    🏷️
+                  </span>
+                  <div>
+                    <p className="font-medium">{cat.label}</p>
+                    <p className="text-sm text-slate-500">
+                      {cat.type === 'both' ? 'Company & Personal' : cat.type === 'company' ? 'Company Only' : 'Personal Only'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    if (confirm(`Delete category "${cat.label}"?`)) {
+                      onDelete(cat.id);
+                    }
+                  }}
+                  className="text-slate-400 hover:text-red-600"
+                  title="Delete"
+                >
+                  🗑️
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Built-in Categories */}
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="p-4 border-b bg-slate-50">
+          <h3 className="font-semibold text-slate-700">Built-in Categories</h3>
+          <p className="text-sm text-slate-500 mt-1">These categories are available by default and cannot be removed</p>
+        </div>
+        <div className="divide-y">
+          {builtInCategories.map(([key, config]) => (
+            <div key={key} className="p-4 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <span className={`w-8 h-8 flex items-center justify-center rounded-full ${
+                  config.type === 'company' ? 'bg-blue-100 text-blue-600' :
+                  config.type === 'personal' ? 'bg-purple-100 text-purple-600' :
+                  'bg-slate-100 text-slate-600'
+                }`}>
+                  {config.type === 'company' ? '🏢' : config.type === 'personal' ? '👤' : '📋'}
+                </span>
+                <div>
+                  <p className="font-medium">{config.label}</p>
+                  <p className="text-sm text-slate-500">
+                    {config.type === 'both' ? 'Company & Personal' : config.type === 'company' ? 'Company Only' : 'Personal Only'}
+                  </p>
+                </div>
+              </div>
+              <span className="text-slate-300 text-sm">Built-in</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+

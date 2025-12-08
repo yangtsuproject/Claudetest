@@ -9,6 +9,7 @@ import {
   BankStatement,
   CompanyInfo,
   AppSettings,
+  CustomCategory,
 } from '@/types';
 import { loadData, saveData, getDefaultAppData, generateId } from '@/lib/storage';
 
@@ -32,6 +33,11 @@ interface AppContextType {
   addExpense: (expense: Omit<Expense, 'id' | 'createdAt' | 'updatedAt'>) => Expense;
   updateExpense: (id: string, expense: Partial<Expense>) => void;
   deleteExpense: (id: string) => void;
+  deleteMultipleExpenses: (ids: string[]) => void;
+
+  // Custom Categories
+  addCustomCategory: (category: Omit<CustomCategory, 'id'>) => CustomCategory;
+  deleteCustomCategory: (id: string) => void;
 
   // Receipts
   addReceipt: (receipt: Omit<Receipt, 'id'>) => Receipt;
@@ -265,6 +271,35 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }));
   };
 
+  const deleteMultipleExpenses = (ids: string[]) => {
+    const idSet = new Set(ids);
+    setData((prev) => ({
+      ...prev,
+      expenses: prev.expenses.filter((exp) => !idSet.has(exp.id)),
+    }));
+  };
+
+  const addCustomCategory = (category: Omit<CustomCategory, 'id'>): CustomCategory => {
+    const newCategory: CustomCategory = {
+      ...category,
+      id: generateId(),
+    };
+
+    setData((prev) => ({
+      ...prev,
+      customCategories: [...(prev.customCategories || []), newCategory],
+    }));
+
+    return newCategory;
+  };
+
+  const deleteCustomCategory = (id: string) => {
+    setData((prev) => ({
+      ...prev,
+      customCategories: (prev.customCategories || []).filter((c) => c.id !== id),
+    }));
+  };
+
   const addReceipt = (receipt: Omit<Receipt, 'id'>): Receipt => {
     const newReceipt: Receipt = {
       ...receipt,
@@ -348,6 +383,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         addExpense,
         updateExpense,
         deleteExpense,
+        deleteMultipleExpenses,
+        addCustomCategory,
+        deleteCustomCategory,
         addReceipt,
         deleteReceipt,
         addBankStatement,
