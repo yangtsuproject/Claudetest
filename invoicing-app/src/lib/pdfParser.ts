@@ -115,6 +115,7 @@ function parseAmount(amountStr: string): number {
 // Keywords that indicate balance entries (not actual transactions)
 const BALANCE_KEYWORDS = [
   'outstanding balance',
+  'total outstanding',
   'previous balance',
   'balance brought forward',
   'balance b/f',
@@ -146,6 +147,48 @@ const BALANCE_KEYWORDS = [
 function isBalanceEntry(description: string): boolean {
   const lowerDesc = description.toLowerCase();
   return BALANCE_KEYWORDS.some(keyword => lowerDesc.includes(keyword));
+}
+
+// Clean up transaction description - remove dates, amounts, currency codes
+function cleanDescription(desc: string): string {
+  let cleaned = desc;
+
+  // Remove date patterns at the start (e.g., "14 Nov", "22 Nov 2024")
+  cleaned = cleaned.replace(/^\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(?:\s+\d{2,4})?\s*/i, '');
+
+  // Remove foreign currency amounts (e.g., "45.00 MYR", "178.00 USD", "100.00 EUR")
+  cleaned = cleaned.replace(/\d{1,3}(?:,\d{3})*(?:\.\d{2})?\s*(?:MYR|USD|EUR|GBP|AUD|JPY|CNY|HKD|THB|IDR|PHP|VND|KRW|TWD|INR)\b/gi, '');
+
+  // Remove SGD amounts
+  cleaned = cleaned.replace(/(?:SGD\s*)?\d{1,3}(?:,\d{3})*\.\d{2}\s*(?:SGD)?/gi, '');
+
+  // Remove standalone currency codes (but not country codes that might be part of location)
+  cleaned = cleaned.replace(/\b(?:MYR|USD|EUR|GBP|AUD|SGD)\b/gi, '');
+
+  // Clean up extra spaces and trim
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+
+  // Remove leading/trailing dashes or special chars
+  cleaned = cleaned.replace(/^[\s\-\|\.]+/, '').replace(/[\s\-\|\.]+$/, '');
+
+  // If after cleaning we only have "MY" or similar short codes, expand them
+  if (cleaned === 'MY') {
+    cleaned = 'Malaysia Transaction';
+  } else if (cleaned.match(/^[A-Z]{2}$/)) {
+    // Two letter country code only - not useful, mark as unknown
+    cleaned = 'Transaction - ' + cleaned;
+  } else if (cleaned === '' || cleaned.length < 2) {
+    // Empty or too short - use original but clean minimally
+    cleaned = desc
+      .replace(/^\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(?:\s+\d{2,4})?\s*/i, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (cleaned === '' || cleaned.length < 2) {
+      cleaned = 'Bank Transaction';
+    }
+  }
+
+  return cleaned;
 }
 
 // Detect if this is a Trust Bank statement
@@ -192,10 +235,19 @@ export function extractTransactionsFromText(text: string): ParsedTransaction[] {
     transactions = parseLineByLine(text);
   }
 
-  // Filter out balance entries (outstanding balance, previous balance, etc.)
-  transactions = transactions.filter(txn => !isBalanceEntry(txn.description));
+  // Clean up descriptions and filter out balance entries
+  transactions = transactions
+    .map(txn => {
+      const cleanedDesc = cleanDescription(txn.description);
+      return {
+        ...txn,
+        description: cleanedDesc,
+        suggestedCategory: categorizeTransaction(cleanedDesc),
+      };
+    })
+    .filter(txn => !isBalanceEntry(txn.description)); // Remove balance entries
 
-  console.log('Total transactions found (after filtering balances):', transactions.length);
+  console.log('Total transactions found (after cleaning):', transactions.length);
 
   // Sort by date
   transactions.sort((a, b) => a.date.localeCompare(b.date));
