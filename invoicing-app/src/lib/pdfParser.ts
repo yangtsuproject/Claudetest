@@ -112,6 +112,42 @@ function parseAmount(amountStr: string): number {
   return isNaN(amount) ? 0 : Math.abs(amount);
 }
 
+// Keywords that indicate balance entries (not actual transactions)
+const BALANCE_KEYWORDS = [
+  'outstanding balance',
+  'previous balance',
+  'balance brought forward',
+  'balance b/f',
+  'balance bf',
+  'brought forward',
+  'b/f',
+  'opening balance',
+  'closing balance',
+  'beginning balance',
+  'ending balance',
+  'statement balance',
+  'current balance',
+  'available balance',
+  'total balance',
+  'minimum payment',
+  'minimum due',
+  'amount due',
+  'payment due',
+  'credit limit',
+  'available credit',
+  'last statement',
+  'previous statement',
+  'carried forward',
+  'carry forward',
+  'c/f',
+];
+
+// Check if a description is a balance entry (should be excluded)
+function isBalanceEntry(description: string): boolean {
+  const lowerDesc = description.toLowerCase();
+  return BALANCE_KEYWORDS.some(keyword => lowerDesc.includes(keyword));
+}
+
 // Detect if this is a Trust Bank statement
 function isTrustBankStatement(text: string): boolean {
   return /trust\s*bank|trust\s*card/i.test(text);
@@ -156,7 +192,10 @@ export function extractTransactionsFromText(text: string): ParsedTransaction[] {
     transactions = parseLineByLine(text);
   }
 
-  console.log('Total transactions found:', transactions.length);
+  // Filter out balance entries (outstanding balance, previous balance, etc.)
+  transactions = transactions.filter(txn => !isBalanceEntry(txn.description));
+
+  console.log('Total transactions found (after filtering balances):', transactions.length);
 
   // Sort by date
   transactions.sort((a, b) => a.date.localeCompare(b.date));
