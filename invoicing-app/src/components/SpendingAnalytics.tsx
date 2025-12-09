@@ -157,19 +157,19 @@ export default function SpendingAnalytics({ expenses, type }: SpendingAnalyticsP
       </div>
 
       {/* Summary Card */}
-      <div className={`bg-white rounded-lg shadow p-6 border-l-4 ${
+      <div className={`bg-white rounded-lg shadow p-4 sm:p-6 border-l-4 ${
         isCompany ? 'border-blue-500' : 'border-purple-500'
       }`}>
-        <h3 className="text-lg font-semibold text-slate-700 mb-2">
+        <h3 className="text-base sm:text-lg font-semibold text-slate-700 mb-2">
           {selectedMonth
             ? `${isCompany ? 'Company' : 'Personal'} Spending - ${getMonthLabel(selectedMonth)}`
             : `Total ${isCompany ? 'Company' : 'Personal'} Spending`
           }
         </h3>
-        <p className={`text-4xl font-bold ${isCompany ? 'text-blue-600' : 'text-purple-600'}`}>
+        <p className={`text-2xl sm:text-4xl font-bold ${isCompany ? 'text-blue-600' : 'text-purple-600'}`}>
           {formatCurrency(totalSpending)}
         </p>
-        <p className="text-sm text-slate-500 mt-1">
+        <p className="text-xs sm:text-sm text-slate-500 mt-1">
           Across {filteredExpenses.length} expense{filteredExpenses.length !== 1 ? 's' : ''}
         </p>
       </div>
@@ -182,23 +182,23 @@ export default function SpendingAnalytics({ expenses, type }: SpendingAnalyticsP
       ) : (
         <>
           {/* Pie Chart */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-slate-700 mb-4">
+          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+            <h3 className="text-base sm:text-lg font-semibold text-slate-700 mb-4">
               Spending Breakdown {selectedMonth && `- ${getMonthLabel(selectedMonth)}`}
             </h3>
 
-            <div className="flex flex-col md:flex-row items-center gap-8">
+            <div className="flex flex-col items-center gap-6 sm:gap-8">
               {/* Pie Chart */}
               <div className="relative">
                 <div
-                  className="w-48 h-48 rounded-full shadow-lg"
+                  className="w-40 h-40 sm:w-48 sm:h-48 rounded-full shadow-lg"
                   style={pieChartStyle}
                 />
                 {/* Center hole for donut effect */}
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-24 h-24 bg-white rounded-full flex flex-col items-center justify-center shadow-inner">
+                  <div className="w-20 h-20 sm:w-24 sm:h-24 bg-white rounded-full flex flex-col items-center justify-center shadow-inner">
                     <span className="text-xs text-slate-500">Total</span>
-                    <span className={`text-sm font-bold ${isCompany ? 'text-blue-600' : 'text-purple-600'}`}>
+                    <span className={`text-xs sm:text-sm font-bold ${isCompany ? 'text-blue-600' : 'text-purple-600'}`}>
                       {formatCurrency(totalSpending)}
                     </span>
                   </div>
@@ -206,19 +206,19 @@ export default function SpendingAnalytics({ expenses, type }: SpendingAnalyticsP
               </div>
 
               {/* Legend */}
-              <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="w-full grid grid-cols-2 gap-2">
                 {categoryTotals.map(({ category, amount, label, color }) => {
                   const percentage = totalSpending > 0 ? (amount / totalSpending) * 100 : 0;
                   return (
                     <div key={category} className="flex items-center gap-2 p-2 rounded hover:bg-slate-50">
                       <div
-                        className="w-4 h-4 rounded-sm flex-shrink-0"
+                        className="w-3 h-3 sm:w-4 sm:h-4 rounded-sm flex-shrink-0"
                         style={{ backgroundColor: color }}
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-700 truncate">{label}</p>
+                        <p className="text-xs sm:text-sm font-medium text-slate-700 truncate">{label}</p>
                         <p className="text-xs text-slate-500">
-                          {formatCurrency(amount)} ({percentage.toFixed(1)}%)
+                          {formatCurrency(amount)} ({percentage.toFixed(0)}%)
                         </p>
                       </div>
                     </div>
@@ -229,30 +229,30 @@ export default function SpendingAnalytics({ expenses, type }: SpendingAnalyticsP
           </div>
 
           {/* Category Breakdown (Bar Chart) */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-slate-700 mb-4">Category Details</h3>
+          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+            <h3 className="text-base sm:text-lg font-semibold text-slate-700 mb-4">Category Details</h3>
 
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               {categoryTotals.map(({ category, amount, label, color }) => {
                 const percentage = totalSpending > 0 ? (amount / totalSpending) * 100 : 0;
 
                 return (
                   <div key={category}>
                     <div className="flex justify-between items-center mb-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
                         <div
-                          className="w-3 h-3 rounded-sm"
+                          className="w-3 h-3 rounded-sm flex-shrink-0"
                           style={{ backgroundColor: color }}
                         />
-                        <span className="text-sm font-medium text-slate-700">{label}</span>
+                        <span className="text-xs sm:text-sm font-medium text-slate-700 truncate">{label}</span>
                       </div>
-                      <span className="text-sm text-slate-500">
-                        {formatCurrency(amount)} ({percentage.toFixed(1)}%)
+                      <span className="text-xs sm:text-sm text-slate-500 flex-shrink-0 ml-2">
+                        {formatCurrency(amount)} ({percentage.toFixed(0)}%)
                       </span>
                     </div>
-                    <div className="w-full bg-slate-100 rounded-full h-3">
+                    <div className="w-full bg-slate-100 rounded-full h-2 sm:h-3">
                       <div
-                        className="h-3 rounded-full transition-all"
+                        className="h-2 sm:h-3 rounded-full transition-all"
                         style={{
                           width: `${percentage}%`,
                           backgroundColor: color,
@@ -266,8 +266,8 @@ export default function SpendingAnalytics({ expenses, type }: SpendingAnalyticsP
           </div>
 
           {/* Top Expenses for the period */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-slate-700 mb-4">
+          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+            <h3 className="text-base sm:text-lg font-semibold text-slate-700 mb-4">
               Top 5 Expenses {selectedMonth && `- ${getMonthLabel(selectedMonth)}`}
             </h3>
 
@@ -276,24 +276,26 @@ export default function SpendingAnalytics({ expenses, type }: SpendingAnalyticsP
                 .sort((a, b) => b.amount - a.amount)
                 .slice(0, 5)
                 .map((expense) => (
-                  <div key={expense.id} className="py-3 flex justify-between items-center">
-                    <div className="flex items-center gap-3">
+                  <div key={expense.id} className="py-3">
+                    <div className="flex items-start gap-2 sm:gap-3">
                       <div
-                        className="w-3 h-3 rounded-sm flex-shrink-0"
+                        className="w-3 h-3 rounded-sm flex-shrink-0 mt-1"
                         style={{ backgroundColor: CATEGORY_COLORS[expense.category] || '#94A3B8' }}
                       />
-                      <div>
-                        <p className="font-medium text-slate-800">{expense.description}</p>
-                        <p className="text-sm text-slate-500">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                          <p className="font-medium text-slate-800 text-sm sm:text-base truncate">{expense.description}</p>
+                          <span className={`font-bold text-sm sm:text-base flex-shrink-0 ${isCompany ? 'text-blue-600' : 'text-purple-600'}`}>
+                            {formatCurrency(expense.amount)}
+                          </span>
+                        </div>
+                        <p className="text-xs sm:text-sm text-slate-500 truncate">
                           {EXPENSE_CATEGORIES[expense.category]?.label || expense.category}
                           {expense.vendor && ` • ${expense.vendor}`}
                           <span className="text-slate-400"> • {new Date(expense.date).toLocaleDateString('en-SG', { day: 'numeric', month: 'short' })}</span>
                         </p>
                       </div>
                     </div>
-                    <span className={`font-bold ${isCompany ? 'text-blue-600' : 'text-purple-600'}`}>
-                      {formatCurrency(expense.amount)}
-                    </span>
                   </div>
                 ))}
             </div>

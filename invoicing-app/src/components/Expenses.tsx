@@ -226,58 +226,60 @@ export default function Expenses() {
         </button>
       </div>
 
-      {/* Tab Navigation */}
-      <div className="flex border-b">
-        <button
-          onClick={() => setTabView('expenses')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition ${
-            tabView === 'expenses'
-              ? `${isCompany ? 'border-blue-600 text-blue-600' : 'border-purple-600 text-purple-600'}`
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          💰 Expenses
-        </button>
-        <button
-          onClick={() => setTabView('receipts')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition ${
-            tabView === 'receipts'
-              ? `${isCompany ? 'border-blue-600 text-blue-600' : 'border-purple-600 text-purple-600'}`
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          🧾 Receipts
-        </button>
-        <button
-          onClick={() => setTabView('bank')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition ${
-            tabView === 'bank'
-              ? `${isCompany ? 'border-blue-600 text-blue-600' : 'border-purple-600 text-purple-600'}`
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          🏦 Bank Statements
-        </button>
-        <button
-          onClick={() => setTabView('analytics')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition ${
-            tabView === 'analytics'
-              ? `${isCompany ? 'border-blue-600 text-blue-600' : 'border-purple-600 text-purple-600'}`
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          📊 Analytics
-        </button>
-        <button
-          onClick={() => setTabView('categories')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition ${
-            tabView === 'categories'
-              ? `${isCompany ? 'border-blue-600 text-blue-600' : 'border-purple-600 text-purple-600'}`
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          🏷️ Categories
-        </button>
+      {/* Tab Navigation - scrollable on mobile */}
+      <div className="overflow-x-auto -mx-4 px-4">
+        <div className="flex border-b min-w-max">
+          <button
+            onClick={() => setTabView('expenses')}
+            className={`px-3 sm:px-4 py-2 text-sm font-medium border-b-2 transition whitespace-nowrap ${
+              tabView === 'expenses'
+                ? `${isCompany ? 'border-blue-600 text-blue-600' : 'border-purple-600 text-purple-600'}`
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            💰 <span className="hidden sm:inline">Expenses</span><span className="sm:hidden">Exp</span>
+          </button>
+          <button
+            onClick={() => setTabView('receipts')}
+            className={`px-3 sm:px-4 py-2 text-sm font-medium border-b-2 transition whitespace-nowrap ${
+              tabView === 'receipts'
+                ? `${isCompany ? 'border-blue-600 text-blue-600' : 'border-purple-600 text-purple-600'}`
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            🧾 <span className="hidden sm:inline">Receipts</span><span className="sm:hidden">Rcpt</span>
+          </button>
+          <button
+            onClick={() => setTabView('bank')}
+            className={`px-3 sm:px-4 py-2 text-sm font-medium border-b-2 transition whitespace-nowrap ${
+              tabView === 'bank'
+                ? `${isCompany ? 'border-blue-600 text-blue-600' : 'border-purple-600 text-purple-600'}`
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            🏦 <span className="hidden sm:inline">Bank</span><span className="sm:hidden">Bank</span>
+          </button>
+          <button
+            onClick={() => setTabView('analytics')}
+            className={`px-3 sm:px-4 py-2 text-sm font-medium border-b-2 transition whitespace-nowrap ${
+              tabView === 'analytics'
+                ? `${isCompany ? 'border-blue-600 text-blue-600' : 'border-purple-600 text-purple-600'}`
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            📊 <span className="hidden sm:inline">Analytics</span><span className="sm:hidden">Stats</span>
+          </button>
+          <button
+            onClick={() => setTabView('categories')}
+            className={`px-3 sm:px-4 py-2 text-sm font-medium border-b-2 transition whitespace-nowrap ${
+              tabView === 'categories'
+                ? `${isCompany ? 'border-blue-600 text-blue-600' : 'border-purple-600 text-purple-600'}`
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            🏷️ <span className="hidden sm:inline">Categories</span><span className="sm:hidden">Cat</span>
+          </button>
+        </div>
       </div>
 
       {/* Expenses Tab */}
@@ -286,59 +288,71 @@ export default function Expenses() {
           {/* Actions */}
           <div className="flex flex-wrap gap-2">
             <button
-              onClick={() => exportExpensesToCSV(filteredExpenses)}
-              className="px-4 py-2 text-slate-600 border rounded hover:bg-slate-50"
-            >
-              Export CSV
-            </button>
-            <button
               onClick={handleAddNew}
-              className={`px-4 py-2 text-white rounded hover:opacity-90 ${
+              className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 text-white rounded hover:opacity-90 text-sm sm:text-base ${
                 isCompany ? 'bg-blue-600' : 'bg-purple-600'
               }`}
             >
-              + Add Expense
+              + Add
             </button>
             <button
               onClick={() => {
                 setSelectMode(!selectMode);
                 setSelectedExpenses(new Set());
               }}
-              className={`px-4 py-2 border rounded hover:bg-slate-50 ${
+              className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 border rounded hover:bg-slate-50 text-sm sm:text-base ${
                 selectMode ? 'bg-slate-100 text-slate-800' : 'text-slate-600'
               }`}
             >
-              {selectMode ? '✕ Cancel Selection' : '☑️ Select Multiple'}
+              {selectMode ? '✕ Cancel' : '☑️ Select'}
             </button>
-            {selectMode && selectedExpenses.size > 0 && (
-              <button
-                onClick={() => {
-                  if (confirm(`Delete ${selectedExpenses.size} expense(s)?`)) {
-                    deleteMultipleExpenses(Array.from(selectedExpenses));
-                    setSelectedExpenses(new Set());
-                    setSelectMode(false);
-                  }
-                }}
-                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-              >
-                🗑️ Delete Selected ({selectedExpenses.size})
-              </button>
-            )}
-            {selectMode && filteredExpenses.length > 0 && (
-              <button
-                onClick={() => {
-                  if (selectedExpenses.size === filteredExpenses.length) {
-                    setSelectedExpenses(new Set());
-                  } else {
-                    setSelectedExpenses(new Set(filteredExpenses.map(e => e.id)));
-                  }
-                }}
-                className="px-4 py-2 text-slate-600 border rounded hover:bg-slate-50"
-              >
-                {selectedExpenses.size === filteredExpenses.length ? 'Deselect All' : 'Select All'}
-              </button>
-            )}
+            <button
+              onClick={() => exportExpensesToCSV(filteredExpenses)}
+              className="hidden sm:block px-4 py-2 text-slate-600 border rounded hover:bg-slate-50"
+            >
+              Export CSV
+            </button>
           </div>
+          {/* Mobile-only export button */}
+          <button
+            onClick={() => exportExpensesToCSV(filteredExpenses)}
+            className="sm:hidden w-full px-4 py-2 text-slate-600 border rounded hover:bg-slate-50 text-sm"
+          >
+            Export CSV
+          </button>
+          {/* Selection actions */}
+          {selectMode && (
+            <div className="flex flex-wrap gap-2">
+              {selectedExpenses.size > 0 && (
+                <button
+                  onClick={() => {
+                    if (confirm(`Delete ${selectedExpenses.size} expense(s)?`)) {
+                      deleteMultipleExpenses(Array.from(selectedExpenses));
+                      setSelectedExpenses(new Set());
+                      setSelectMode(false);
+                    }
+                  }}
+                  className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm sm:text-base"
+                >
+                  🗑️ Delete ({selectedExpenses.size})
+                </button>
+              )}
+              {filteredExpenses.length > 0 && (
+                <button
+                  onClick={() => {
+                    if (selectedExpenses.size === filteredExpenses.length) {
+                      setSelectedExpenses(new Set());
+                    } else {
+                      setSelectedExpenses(new Set(filteredExpenses.map(e => e.id)));
+                    }
+                  }}
+                  className="flex-1 sm:flex-none px-3 sm:px-4 py-2 text-slate-600 border rounded hover:bg-slate-50 text-sm sm:text-base"
+                >
+                  {selectedExpenses.size === filteredExpenses.length ? 'Deselect All' : 'Select All'}
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Month Filter */}
           <div className="flex flex-wrap gap-4 items-center">
@@ -395,7 +409,7 @@ export default function Expenses() {
                   return (
                   <div
                     key={expense.id}
-                    className={`p-4 flex justify-between items-center hover:bg-slate-50 ${
+                    className={`p-3 sm:p-4 hover:bg-slate-50 cursor-pointer ${
                       selectMode && selectedExpenses.has(expense.id) ? 'bg-blue-50' : ''
                     }`}
                     onClick={selectMode ? () => {
@@ -408,54 +422,58 @@ export default function Expenses() {
                       setSelectedExpenses(newSelected);
                     } : undefined}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-start sm:items-center gap-3">
                       {selectMode ? (
                         <input
                           type="checkbox"
                           checked={selectedExpenses.has(expense.id)}
                           onChange={() => {}}
-                          className="w-5 h-5 rounded border-slate-300"
+                          className="w-5 h-5 rounded border-slate-300 mt-1 sm:mt-0 flex-shrink-0"
                         />
                       ) : (
-                        <span className={`w-10 h-10 flex items-center justify-center rounded-full text-lg ${
+                        <span className={`hidden sm:flex w-10 h-10 items-center justify-center rounded-full text-lg flex-shrink-0 ${
                           isCompany ? 'bg-blue-100' : 'bg-purple-100'
                         }`}>
                           {isCompany ? '🏢' : '👤'}
                         </span>
                       )}
-                      <div>
-                        <p className="font-medium">{expense.description}</p>
-                        <p className="text-sm text-slate-500">
-                          {categoryLabel}
-                          {expense.vendor && ` • ${expense.vendor}`}
-                        </p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-4">
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{expense.description}</p>
+                            <p className="text-sm text-slate-500 truncate">
+                              {categoryLabel}
+                              {expense.vendor && ` • ${expense.vendor}`}
+                            </p>
+                          </div>
+                          <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4">
+                            <div className="sm:text-right">
+                              <p className={`font-medium text-sm sm:text-base ${isCompany ? 'text-blue-600' : 'text-purple-600'}`}>
+                                -{formatCurrency(expense.amount)}
+                              </p>
+                              <p className="text-xs text-slate-400">{formatDate(expense.date)}</p>
+                            </div>
+                            {!selectMode && (
+                            <div className="flex gap-2 flex-shrink-0">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleEdit(expense); }}
+                                className="text-slate-400 hover:text-blue-600 p-1"
+                                title="Edit"
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleDelete(expense.id); }}
+                                className="text-slate-400 hover:text-red-600 p-1"
+                                title="Delete"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <p className={`font-medium ${isCompany ? 'text-blue-600' : 'text-purple-600'}`}>
-                          -{formatCurrency(expense.amount)}
-                        </p>
-                        <p className="text-xs text-slate-400">{formatDate(expense.date)}</p>
-                      </div>
-                      {!selectMode && (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleEdit(expense)}
-                          className="text-slate-400 hover:text-blue-600"
-                          title="Edit"
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          onClick={() => handleDelete(expense.id)}
-                          className="text-slate-400 hover:text-red-600"
-                          title="Delete"
-                        >
-                          🗑️
-                        </button>
-                      </div>
-                      )}
                     </div>
                   </div>
                   );
@@ -1395,8 +1413,10 @@ function BankUpload({ onUpload, onCancel }: BankUploadProps) {
                   </div>
                 </div>
 
+                {/* Mobile: Card view, Desktop: Table view */}
                 <div className="max-h-64 overflow-auto border rounded-lg">
-                  <table className="w-full text-sm">
+                  {/* Desktop Table */}
+                  <table className="hidden sm:table w-full text-sm">
                     <thead className="bg-slate-50 sticky top-0">
                       <tr>
                         <th className="w-8 p-2"></th>
@@ -1435,6 +1455,37 @@ function BankUpload({ onUpload, onCancel }: BankUploadProps) {
                       ))}
                     </tbody>
                   </table>
+                  {/* Mobile Card View */}
+                  <div className="sm:hidden divide-y">
+                    {parsedPdfTransactions.map((t, i) => (
+                      <div
+                        key={i}
+                        className={`p-3 cursor-pointer ${selectedTransactions.has(i) ? 'bg-blue-50' : ''}`}
+                        onClick={() => toggleTransaction(i)}
+                      >
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedTransactions.has(i)}
+                            onChange={() => toggleTransaction(i)}
+                            className="rounded mt-1 flex-shrink-0"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate">{t.description}</p>
+                            <div className="flex items-center justify-between mt-1">
+                              <span className="text-xs text-slate-500">{formatDate(t.date)}</span>
+                              <span className={`font-medium text-sm ${t.type === 'credit' ? 'text-green-600' : 'text-red-600'}`}>
+                                {t.type === 'credit' ? '+' : '-'}{formatCurrency(t.amount)}
+                              </span>
+                            </div>
+                            <span className="inline-block mt-1 px-2 py-0.5 bg-slate-100 rounded text-xs">
+                              {EXPENSE_CATEGORIES[t.suggestedCategory]?.label || t.suggestedCategory}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="flex gap-4">
@@ -1460,7 +1511,8 @@ function BankUpload({ onUpload, onCancel }: BankUploadProps) {
             {/* CSV Transaction Preview */}
             {transactions.length > 0 && (
               <div className="max-h-64 overflow-auto border rounded-lg">
-                <table className="w-full text-sm">
+                {/* Desktop Table */}
+                <table className="hidden sm:table w-full text-sm">
                   <thead className="bg-slate-50 sticky top-0">
                     <tr>
                       <th className="text-left p-2">Date</th>
@@ -1480,6 +1532,20 @@ function BankUpload({ onUpload, onCancel }: BankUploadProps) {
                     ))}
                   </tbody>
                 </table>
+                {/* Mobile Card View */}
+                <div className="sm:hidden divide-y">
+                  {transactions.slice(0, 10).map((t, i) => (
+                    <div key={i} className="p-3">
+                      <p className="font-medium text-sm truncate">{t.description}</p>
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="text-xs text-slate-500">{formatDate(t.date)}</span>
+                        <span className={`font-medium text-sm ${t.type === 'credit' ? 'text-green-600' : 'text-red-600'}`}>
+                          {t.type === 'credit' ? '+' : '-'}{formatCurrency(t.amount)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
                 {transactions.length > 10 && (
                   <p className="p-2 text-center text-slate-500 text-sm bg-slate-50">
                     ... and {transactions.length - 10} more transactions
@@ -1566,44 +1632,63 @@ function StatementView({ statement, onClose, onDelete }: StatementViewProps) {
 
         {statement.transactions.length > 0 && (
           <>
-            <div className="grid grid-cols-3 gap-4 mb-4">
-              <div>
-                <p className="text-sm text-slate-500">Transactions</p>
-                <p className="text-xl font-bold">{statement.transactions.length}</p>
+            <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-4">
+              <div className="text-center sm:text-left">
+                <p className="text-xs sm:text-sm text-slate-500">Transactions</p>
+                <p className="text-lg sm:text-xl font-bold">{statement.transactions.length}</p>
               </div>
-              <div>
-                <p className="text-sm text-slate-500">Total Credits</p>
-                <p className="text-xl font-bold text-green-600">{formatCurrency(credits)}</p>
+              <div className="text-center sm:text-left">
+                <p className="text-xs sm:text-sm text-slate-500">Credits</p>
+                <p className="text-lg sm:text-xl font-bold text-green-600">{formatCurrency(credits)}</p>
               </div>
-              <div>
-                <p className="text-sm text-slate-500">Total Debits</p>
-                <p className="text-xl font-bold text-red-600">{formatCurrency(debits)}</p>
+              <div className="text-center sm:text-left">
+                <p className="text-xs sm:text-sm text-slate-500">Debits</p>
+                <p className="text-lg sm:text-xl font-bold text-red-600">{formatCurrency(debits)}</p>
               </div>
             </div>
 
-            <div className="overflow-x-auto border rounded-lg">
-              <table className="w-full">
-                <thead className="bg-slate-50 text-left">
-                  <tr>
-                    <th className="p-3 font-medium text-slate-600">Date</th>
-                    <th className="p-3 font-medium text-slate-600">Description</th>
-                    <th className="p-3 font-medium text-slate-600 text-right">Amount</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {statement.transactions.map((t) => (
-                    <tr key={t.id} className="hover:bg-slate-50">
-                      <td className="p-3 text-slate-600">{formatDate(t.date)}</td>
-                      <td className="p-3">{t.description}</td>
-                      <td className={`p-3 text-right font-medium ${
+            <div className="border rounded-lg overflow-hidden">
+              {/* Desktop Table */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-slate-50 text-left">
+                    <tr>
+                      <th className="p-3 font-medium text-slate-600">Date</th>
+                      <th className="p-3 font-medium text-slate-600">Description</th>
+                      <th className="p-3 font-medium text-slate-600 text-right">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {statement.transactions.map((t) => (
+                      <tr key={t.id} className="hover:bg-slate-50">
+                        <td className="p-3 text-slate-600">{formatDate(t.date)}</td>
+                        <td className="p-3">{t.description}</td>
+                        <td className={`p-3 text-right font-medium ${
+                          t.type === 'credit' ? 'text-green-600' : 'text-red-600'
+                        }`}>
+                          {t.type === 'credit' ? '+' : '-'}{formatCurrency(t.amount)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {/* Mobile Card View */}
+              <div className="sm:hidden divide-y max-h-96 overflow-y-auto">
+                {statement.transactions.map((t) => (
+                  <div key={t.id} className="p-3">
+                    <p className="font-medium text-sm">{t.description}</p>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="text-xs text-slate-500">{formatDate(t.date)}</span>
+                      <span className={`font-medium ${
                         t.type === 'credit' ? 'text-green-600' : 'text-red-600'
                       }`}>
                         {t.type === 'credit' ? '+' : '-'}{formatCurrency(t.amount)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </>
         )}

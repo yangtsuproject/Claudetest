@@ -97,12 +97,12 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       {/* View Mode Toggle */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-slate-800">Dashboard</h2>
-        <div className="flex bg-slate-200 rounded-lg p-1">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <h2 className="text-xl sm:text-2xl font-bold text-slate-800">Dashboard</h2>
+        <div className="flex bg-slate-200 rounded-lg p-1 w-full sm:w-auto">
           <button
             onClick={() => setViewMode('company')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition ${
+            className={`flex-1 sm:flex-none px-4 py-2 rounded-md text-sm font-medium transition ${
               viewMode === 'company'
                 ? 'bg-blue-600 text-white'
                 : 'text-slate-600 hover:text-slate-800'
@@ -112,7 +112,7 @@ export default function Dashboard() {
           </button>
           <button
             onClick={() => setViewMode('personal')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition ${
+            className={`flex-1 sm:flex-none px-4 py-2 rounded-md text-sm font-medium transition ${
               viewMode === 'personal'
                 ? 'bg-purple-600 text-white'
                 : 'text-slate-600 hover:text-slate-800'
@@ -127,26 +127,26 @@ export default function Dashboard() {
       {viewMode === 'company' && (
         <>
           {/* Company Summary Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
-              <p className="text-sm text-slate-500">Revenue (Paid)</p>
-              <p className="text-2xl font-bold text-green-600">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+            <div className="bg-white rounded-lg shadow p-3 sm:p-4 border-l-4 border-green-500">
+              <p className="text-xs sm:text-sm text-slate-500">Revenue (Paid)</p>
+              <p className="text-xl sm:text-2xl font-bold text-green-600">
                 {formatCurrency(stats.paidThisMonth)}
               </p>
               <p className="text-xs text-slate-400 mt-1">This month</p>
             </div>
 
-            <div className="bg-white rounded-lg shadow p-4 border-l-4 border-yellow-500">
-              <p className="text-sm text-slate-500">Unpaid Invoices</p>
-              <p className="text-2xl font-bold text-yellow-600">
+            <div className="bg-white rounded-lg shadow p-3 sm:p-4 border-l-4 border-yellow-500">
+              <p className="text-xs sm:text-sm text-slate-500">Unpaid Invoices</p>
+              <p className="text-xl sm:text-2xl font-bold text-yellow-600">
                 {formatCurrency(stats.unpaidTotal)}
               </p>
               <p className="text-xs text-slate-400 mt-1">{stats.unpaidCount} invoice(s)</p>
             </div>
 
-            <div className="bg-white rounded-lg shadow p-4 border-l-4 border-red-500">
-              <p className="text-sm text-slate-500">Company Expenses</p>
-              <p className="text-2xl font-bold text-red-600">
+            <div className="bg-white rounded-lg shadow p-3 sm:p-4 border-l-4 border-red-500">
+              <p className="text-xs sm:text-sm text-slate-500">Company Expenses</p>
+              <p className="text-xl sm:text-2xl font-bold text-red-600">
                 {formatCurrency(stats.companyExpensesThisMonth)}
               </p>
               <p className="text-xs text-slate-400 mt-1">This month</p>
@@ -156,18 +156,18 @@ export default function Dashboard() {
           {/* Company YTD Summary */}
           <div className="bg-white rounded-lg shadow p-4">
             <h3 className="font-semibold text-slate-700 mb-3">Year to Date - Company</h3>
-            <div className="grid grid-cols-3 gap-4 text-center">
+            <div className="grid grid-cols-3 gap-2 sm:gap-4 text-center">
               <div>
-                <p className="text-sm text-slate-500">Income</p>
-                <p className="text-lg font-bold text-green-600">{formatCurrency(stats.ytdIncome)}</p>
+                <p className="text-xs sm:text-sm text-slate-500">Income</p>
+                <p className="text-base sm:text-lg font-bold text-green-600">{formatCurrency(stats.ytdIncome)}</p>
               </div>
               <div>
-                <p className="text-sm text-slate-500">Expenses</p>
-                <p className="text-lg font-bold text-red-600">{formatCurrency(stats.ytdCompanyExpenses)}</p>
+                <p className="text-xs sm:text-sm text-slate-500">Expenses</p>
+                <p className="text-base sm:text-lg font-bold text-red-600">{formatCurrency(stats.ytdCompanyExpenses)}</p>
               </div>
               <div>
-                <p className="text-sm text-slate-500">Net Profit</p>
-                <p className={`text-lg font-bold ${stats.ytdProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                <p className="text-xs sm:text-sm text-slate-500">Net Profit</p>
+                <p className={`text-base sm:text-lg font-bold ${stats.ytdProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {formatCurrency(stats.ytdProfit)}
                 </p>
               </div>
@@ -270,18 +270,18 @@ export default function Dashboard() {
       {viewMode === 'personal' && (
         <>
           {/* Personal Summary Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="bg-white rounded-lg shadow p-4 border-l-4 border-purple-500">
-              <p className="text-sm text-slate-500">Personal Expenses</p>
-              <p className="text-2xl font-bold text-purple-600">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <div className="bg-white rounded-lg shadow p-3 sm:p-4 border-l-4 border-purple-500">
+              <p className="text-xs sm:text-sm text-slate-500">Personal Expenses</p>
+              <p className="text-xl sm:text-2xl font-bold text-purple-600">
                 {formatCurrency(stats.personalExpensesThisMonth)}
               </p>
               <p className="text-xs text-slate-400 mt-1">This month</p>
             </div>
 
-            <div className="bg-white rounded-lg shadow p-4 border-l-4 border-indigo-500">
-              <p className="text-sm text-slate-500">YTD Personal Expenses</p>
-              <p className="text-2xl font-bold text-indigo-600">
+            <div className="bg-white rounded-lg shadow p-3 sm:p-4 border-l-4 border-indigo-500">
+              <p className="text-xs sm:text-sm text-slate-500">YTD Personal Expenses</p>
+              <p className="text-xl sm:text-2xl font-bold text-indigo-600">
                 {formatCurrency(stats.ytdPersonalExpenses)}
               </p>
               <p className="text-xs text-slate-400 mt-1">Year to date</p>
